@@ -39,7 +39,11 @@ class AuditAction(StrEnum):
 
     # Documents
     DOCUMENT_UPLOADED = "document.uploaded"
+    DOCUMENT_REJECTED = "document.rejected"  # T-S02-011: per-file validation failure
     DOCUMENT_DUPLICATE_SKIPPED = "document.duplicate_skipped"
+    DOCUMENT_REPLACED = "document.replaced"  # T-S02-011: для DuplicateStrategy.REPLACE
+    DOCUMENT_REMOVED = "document.removed"  # T-S02-011: для DELETE (S4)
+    BATCH_COMPLETED = "batch.completed"  # T-S02-011: финализация batch
 
     # Pipeline
     PIPELINE_STARTED = "pipeline.started"

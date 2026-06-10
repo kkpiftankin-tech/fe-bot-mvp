@@ -16,6 +16,7 @@ from fe_bot.api.dependencies import (
     get_artifact_storage,
     get_audit_log,
     get_audit_service,
+    get_batch_registry,
     get_card_registry,
     get_card_review,
     get_evaluation_service,
@@ -27,6 +28,7 @@ from fe_bot.api.dependencies import (
     get_metadata_validation,
     get_metrics,
     get_orchestrator,
+    get_orphan_cleanup_service,
     get_parser_service,
     get_pipeline,
     get_retrieval_service,
@@ -60,6 +62,8 @@ from fe_bot.setup.publish.service import (
 )
 from fe_bot.setup.repository import InMemoryJobRepository
 from fe_bot.setup.source_registry.service import InMemorySourceRegistry
+from fe_bot.setup.upload.batch_registry import InMemoryBatchRegistry
+from fe_bot.setup.upload.cleanup import OrphanCleanupService
 from fe_bot.setup.upload.idempotency import InMemoryIdempotencyCache
 from fe_bot.setup.upload.service import DocumentUploadService
 from fe_bot.storage.artifact_service import InMemoryArtifactStorage
@@ -81,11 +85,17 @@ def app_with_clean_state() -> FastAPI:
     orchestrator = SetupOrchestrator(repo, bus)
     storage = InMemoryArtifactStorage()
     registry = InMemorySourceRegistry()
+    # S8 observability сначала — DocumentUploadService принимает их (T-S02-011/012).
+    audit_log = InMemoryAuditLog()
+    audit_svc = AuditService(audit_log)
+    metrics_registry = MetricsRegistry()
     upload_svc = DocumentUploadService(
         job_repository=repo,
         source_registry=registry,
         artifact_storage=storage,
         event_bus=bus,
+        audit_service=audit_svc,
+        metrics=metrics_registry,
     )
     parser_svc = DocumentParserService(
         artifact_storage=storage, source_registry=registry
@@ -136,11 +146,11 @@ def app_with_clean_state() -> FastAPI:
     kb_repository = InMemoryKBRepository()
     kb_publish_svc = KBPublishService(repository=kb_repository)
 
-    # S8 wiring
-    audit_log = InMemoryAuditLog()
-    audit_svc = AuditService(audit_log)
-    metrics_registry = MetricsRegistry()
+    # S8 wiring (audit_log/audit_svc/metrics_registry уже созданы выше для
+    # инъекции в DocumentUploadService — T-S02-011).
     idempotency_cache = InMemoryIdempotencyCache()
+    batch_registry = InMemoryBatchRegistry()
+    orphan_cleanup = OrphanCleanupService(storage=storage, registry=registry)
     # Подменяем metrics-registry в app.state — middleware читает оттуда.
     app.state.metrics = metrics_registry
 
@@ -165,6 +175,8 @@ def app_with_clean_state() -> FastAPI:
     app.dependency_overrides[get_audit_service] = lambda: audit_svc
     app.dependency_overrides[get_metrics] = lambda: metrics_registry
     app.dependency_overrides[get_idempotency_cache] = lambda: idempotency_cache
+    app.dependency_overrides[get_batch_registry] = lambda: batch_registry
+    app.dependency_overrides[get_orphan_cleanup_service] = lambda: orphan_cleanup
     yield app
     app.dependency_overrides.clear()
     # Очистка module-level singletons (на всякий случай для других тестов).

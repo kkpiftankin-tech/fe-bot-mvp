@@ -265,3 +265,257 @@ input, textarea {
   font-size: 13px;
   margin-top: 6px;
 }
+
+/* ==== SETUP-02 Upload UI (T-S02-017/018) ==== */
+
+.upload-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.drop-zone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 32px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 150ms ease;
+  background: #f8fafc;
+}
+
+.drop-zone.dragging {
+  border-color: #1f2937;
+  background: #eff6ff;
+}
+
+.drop-zone.disabled {
+  cursor: not-allowed;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+}
+
+.drop-zone p {
+  margin: 0 0 6px 0;
+}
+
+.batch-errors {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background: #fef2f2;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.batch-errors li {
+  margin: 0;
+}
+
+.selected-files {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.file-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.file-row.invalid {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.file-row .filename {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-icon {
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.btn-icon:hover {
+  color: #b91c1c;
+}
+
+.upload-progress-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progress-row {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.progress-row.uploaded {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.progress-row.duplicate {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.progress-row.rejected {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.progress-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.badge-uploading {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.badge-uploaded {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badge-duplicate {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badge-pending {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+/* ==== Uploaded files table (T-S02-020) ==== */
+
+.docs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.docs-table th,
+.docs-table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.docs-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  user-select: none;
+}
+
+.docs-table tr.row-removed {
+  opacity: 0.55;
+}
+
+.docs-table td.filename {
+  font-weight: 500;
+}
+
+/* ==== Modals (T-S02-020 / T-S02-022) ==== */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 540px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.modal h3 {
+  margin-top: 0;
+}
+
+.modal dl.kv-grid {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 8px 16px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+.modal dt,
+.modal dd {
+  margin: 0;
+}
+
+.modal code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.error-list {
+  margin: 12px 0 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+}
+
+.error-list li {
+  margin-bottom: 6px;
+}
+
+.duplicate-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.duplicate-list li {
+  border-bottom: 1px solid #f3f4f6;
+  padding: 8px 0;
+}

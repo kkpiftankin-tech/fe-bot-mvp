@@ -66,10 +66,53 @@ export interface SourceDocumentResponse {
   storage_path?: string | null;
 }
 
+/**
+ * UploadErrorCode (SETUP-02 / T-S02-002).
+ * Зеркало schemas/setup/upload_errors.py:UploadErrorCode.
+ * Стабильный machine-readable контракт между frontend и backend.
+ */
+export type UploadErrorCode =
+  | "MISSING_FILES"
+  | "UNSUPPORTED_FILE_TYPE"
+  | "FILE_TOO_LARGE"
+  | "BATCH_TOO_LARGE"
+  | "EMPTY_FILE"
+  | "INVALID_FILENAME"
+  | "DUPLICATE_FILE"
+  | "SETUP_JOB_NOT_FOUND"
+  | "SETUP_JOB_NOT_UPLOADABLE"
+  | "INSUFFICIENT_PERMISSIONS"
+  | "OBJECT_STORAGE_UNAVAILABLE"
+  | "OBJECT_STORAGE_WRITE_FAILED"
+  | "SOURCE_REGISTRY_UNAVAILABLE"
+  | "CHECKSUM_CALCULATION_FAILED"
+  | "UPLOAD_STREAM_INTERRUPTED"
+  | "INTERNAL_UPLOAD_ERROR";
+
+export interface UploadFileError {
+  filename: string;
+  error_code: UploadErrorCode;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export interface UploadSummary {
+  files_total: number;
+  files_uploaded: number;
+  files_rejected: number;
+  duplicates_detected: number;
+}
+
 export interface UploadDocumentsResponse {
   setup_job_id: string;
+  /** SETUP-02 / T-S02-009: server-generated batch identifier. */
+  upload_batch_id?: string | null;
+  /** SETUP-02 / T-S02-003: aggregate counters. */
+  summary?: UploadSummary | null;
   uploaded: SourceDocumentResponse[];
   skipped_duplicates: SourceDocumentResponse[];
+  /** SETUP-02 / T-S02-006: per-file errors при partial success. */
+  errors?: UploadFileError[];
   job_status: SetupJobStatus;
   message?: string | null;
 }
@@ -78,6 +121,13 @@ export interface ListDocumentsResponse {
   setup_job_id: string;
   documents: SourceDocumentResponse[];
   count: number;
+}
+
+export interface RemoveDocumentResponse {
+  setup_job_id: string;
+  source_document_id: string;
+  status: string;
+  message?: string | null;
 }
 
 export interface VectorIndexSummary {

@@ -14,10 +14,12 @@ class Permission(StrEnum):
 
     KB_SETUP_CREATE = "kb.setup.create"
     KB_DOCUMENT_UPLOAD = "kb.document.upload"
+    KB_DOCUMENT_DELETE = "kb.document.delete"  # SETUP-02 / T-S02-014
     KB_SETUP_RUN = "kb.setup.run"
     KB_CARD_REVIEW = "kb.card.review"
     KB_PUBLISH = "kb.publish"
     KB_REPORT_READ = "kb.report.read"
+    KB_ADMIN_CLEANUP = "kb.admin.cleanup"  # SETUP-02 / T-S02-023
 
 
 class Role(StrEnum):
@@ -34,6 +36,8 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         {
             Permission.KB_SETUP_CREATE,
             Permission.KB_DOCUMENT_UPLOAD,
+            # user может удалять свои документы в pre-pipeline состоянии
+            Permission.KB_DOCUMENT_DELETE,
             Permission.KB_SETUP_RUN,
             Permission.KB_REPORT_READ,
         }
@@ -42,6 +46,7 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         {
             Permission.KB_SETUP_CREATE,
             Permission.KB_DOCUMENT_UPLOAD,
+            Permission.KB_DOCUMENT_DELETE,
             Permission.KB_SETUP_RUN,
             Permission.KB_CARD_REVIEW,
             Permission.KB_REPORT_READ,
@@ -51,6 +56,7 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         {
             Permission.KB_SETUP_CREATE,
             Permission.KB_DOCUMENT_UPLOAD,
+            Permission.KB_DOCUMENT_DELETE,
             Permission.KB_SETUP_RUN,
             Permission.KB_CARD_REVIEW,
             Permission.KB_PUBLISH,

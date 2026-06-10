@@ -127,6 +127,35 @@ export const handlers = [
     return HttpResponse.json(resp);
   }),
 
+  // SETUP-02 / T-S02-014: DELETE document.
+  http.delete("/api/v1/setup/:sid/documents/:docId", ({ params }) => {
+    const job = state.jobs.get(params.sid as string);
+    if (!job) return HttpResponse.json({ detail: "not found" }, { status: 404 });
+    const docId = params.docId as string;
+    const doc = job.documents.find((d) => d.source_document_id === docId);
+    if (!doc) return HttpResponse.json({ detail: "doc not found" }, { status: 404 });
+    job.documents = job.documents.map((d) =>
+      d.source_document_id === docId ? { ...d, status: "removed" } : d,
+    );
+    return HttpResponse.json({
+      setup_job_id: job.setup_job_id,
+      source_document_id: docId,
+      status: "removed",
+      message: "Document removed",
+    });
+  }),
+
+  // SETUP-02 / T-S02-015: GET single document metadata.
+  http.get("/api/v1/setup/:sid/documents/:docId", ({ params }) => {
+    const job = state.jobs.get(params.sid as string);
+    if (!job) return HttpResponse.json({ detail: "not found" }, { status: 404 });
+    const doc = job.documents.find(
+      (d) => d.source_document_id === (params.docId as string),
+    );
+    if (!doc) return HttpResponse.json({ detail: "doc not found" }, { status: 404 });
+    return HttpResponse.json(doc);
+  }),
+
   http.post("/api/v1/setup/:sid/run", ({ params }) => {
     const job = state.jobs.get(params.sid as string);
     if (!job) return HttpResponse.json({ detail: "not found" }, { status: 404 });

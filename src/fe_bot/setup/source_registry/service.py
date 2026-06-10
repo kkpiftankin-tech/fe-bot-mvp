@@ -35,6 +35,13 @@ class SourceRegistry(Protocol):
 
     def update(self, document: SourceDocument) -> None: ...
 
+    def remove(self, source_document_id: str) -> SourceDocument:
+        """Soft-delete: ставит status=REMOVED, освобождает дедуп-ключ.
+
+        SETUP-02 / T-S02-014. Возвращает обновлённый документ.
+        """
+        ...
+
 
 class InMemorySourceRegistry:
     """In-memory реализация (S2/MVP).
@@ -88,6 +95,29 @@ class InMemorySourceRegistry:
         if old.checksum != document.checksum:
             raise ValueError("Cannot change checksum via update()")
         self._by_id[document.source_document_id] = document.model_copy(deep=True)
+
+    def remove(self, source_document_id: str) -> SourceDocument:
+        """Soft-delete (T-S02-014).
+
+        - status → REMOVED.
+        - дедуп-ключ (setup_job_id, checksum) освобождается → можно re-upload
+          тот же файл после удаления.
+        - запись остаётся в `_by_id` для audit и list_for_job (с фильтром).
+        - идемпотентность: повторный вызов с тем же id возвращает уже REMOVED
+          документ без повторного raise.
+        """
+        from schemas.setup.source_document import SourceDocumentStatus
+
+        if source_document_id not in self._by_id:
+            raise SourceDocumentNotFoundError(source_document_id)
+        old = self._by_id[source_document_id]
+        if old.status == SourceDocumentStatus.REMOVED:
+            return old.model_copy(deep=True)
+        # Освободить дедуп-ключ.
+        self._by_checksum.pop((old.setup_job_id, old.checksum), None)
+        updated = old.model_copy(update={"status": SourceDocumentStatus.REMOVED})
+        self._by_id[source_document_id] = updated
+        return updated.model_copy(deep=True)
 
     def clear(self) -> None:
         """Для тестов."""

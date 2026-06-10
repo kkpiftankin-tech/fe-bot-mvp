@@ -12,6 +12,8 @@
 from __future__ import annotations
 
 import contextlib
+import uuid
+from datetime import UTC, datetime
 
 from fastapi import (
     APIRouter,
@@ -31,15 +33,19 @@ from schemas.setup.rag_setup_job import (
     SetupJobStatus,
 )
 from schemas.setup.source_document import SourceDocument
+from schemas.setup.upload_batch import UploadBatch, UploadBatchStatus
 from schemas.setup.upload_errors import UploadFileError, http_status_for
 
 from fe_bot.api.dependencies import (
+    get_audit_service,
+    get_batch_registry,
     get_card_registry,
     get_card_review,
     get_evaluation_service,
     get_idempotency_cache,
     get_kb_publish_service,
     get_kb_repository,
+    get_metrics,
     get_orchestrator,
     get_pipeline,
     get_source_registry,
@@ -58,6 +64,7 @@ from fe_bot.api.setup.dto import (
     PublishKBResponse,
     RAGCardSummary,
     ReindexResponse,
+    RemoveDocumentResponse,
     ReviewRAGCardRequest,
     ReviewRAGCardResponse,
     RunPipelineResponse,
@@ -69,9 +76,11 @@ from fe_bot.api.setup.dto import (
     UploadSummary,
     VectorIndexSummary,
 )
+from fe_bot.audit.service import AuditAction, AuditService
 from fe_bot.auth.permissions import Permission
 from fe_bot.auth.permissions import Role as _Role
 from fe_bot.auth.service import Principal
+from fe_bot.observability.metrics import MetricsRegistry
 from fe_bot.setup.card_registry.service import (
     CardNotFoundError,
     InMemoryRAGCardRegistry,
@@ -98,6 +107,7 @@ from fe_bot.setup.source_registry.service import (
     InMemorySourceRegistry,
     SourceDocumentNotFoundError,
 )
+from fe_bot.setup.upload.batch_registry import InMemoryBatchRegistry
 from fe_bot.setup.upload.idempotency import (
     InMemoryIdempotencyCache,
     make_cache_key,
@@ -112,6 +122,7 @@ from fe_bot.setup.upload.validation import (
     check_filename_uniqueness,
     validate_batch_limits,
 )
+from fe_bot.storage.artifact_service import StorageError
 from fe_bot.vector_index.service import VectorIndexerService
 
 router = APIRouter(prefix="/api/v1/setup", tags=["setup"])
@@ -314,6 +325,9 @@ async def upload_documents(
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
     upload_svc: DocumentUploadService = Depends(get_upload_service),
     idempotency: InMemoryIdempotencyCache = Depends(get_idempotency_cache),
+    batch_registry: InMemoryBatchRegistry = Depends(get_batch_registry),
+    audit: AuditService = Depends(get_audit_service),
+    metrics: MetricsRegistry = Depends(get_metrics),
 ) -> UploadDocumentsResponse:
     """T-S02-005/006: batch-level pre-checks + per-file partial success.
 
@@ -339,6 +353,21 @@ async def upload_documents(
         cached = idempotency.get(cache_key)
         if cached is not None:
             return cached
+        # Fallback: возможно cache очищен, но batch уже существует в registry.
+        existing_batch = batch_registry.get_by_request_id(
+            setup_job_id, upload_request_id
+        )
+        if existing_batch is not None:
+            # Конфликт: тот же request_id уже использован, но результат
+            # вне TTL cache. Возвращаем 409, чтобы клиент знал что повтор
+            # отвергнут не из-за валидации, а из-за идемпотентности.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"upload_request_id {upload_request_id!r} already used "
+                    f"by batch {existing_batch.upload_batch_id!r}"
+                ),
+            )
 
     # ----- Batch-level pre-checks (T-S02-005/006) -----
     try:
@@ -356,6 +385,18 @@ async def upload_documents(
                 "details": exc.details,
             },
         ) from exc
+
+    # T-S02-009: создаём UploadBatch в IN_PROGRESS до начала обработки файлов.
+    upload_batch_id = f"batch_{uuid.uuid4().hex[:12]}"
+    batch = UploadBatch(
+        upload_batch_id=upload_batch_id,
+        setup_job_id=setup_job_id,
+        user_id=principal.user_id,
+        upload_request_id=upload_request_id,
+        files_total=len(files),
+        created_at=datetime.now(tz=UTC),
+    )
+    batch_registry.add(batch)
 
     uploaded: list[SourceDocumentResponse] = []
     skipped: list[SourceDocumentResponse] = []
@@ -385,9 +426,38 @@ async def upload_documents(
             continue
         except JobNotAcceptingUploadsError as exc:
             # Этот статус job — batch-level, не должен оказаться в errors[]
-            # (он fail-весь-batch при первом fail).
+            # (он fail-весь-batch при первом fail). Финализируем batch как FAILED.
+            fail_batch = batch.model_copy(
+                update={
+                    "files_uploaded": len(uploaded),
+                    "files_rejected": len(errors),
+                    "duplicates_detected": len(skipped),
+                }
+            )
+            with contextlib.suppress(Exception):
+                fail_batch.transition_to(UploadBatchStatus.FAILED)
+                batch_registry.update(fail_batch)
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+            ) from exc
+        except StorageError as exc:
+            # T-S02-024: Object Storage недоступен — batch FAILED, 500 клиенту.
+            fail_batch = batch.model_copy(
+                update={
+                    "files_uploaded": len(uploaded),
+                    "files_rejected": len(errors),
+                    "duplicates_detected": len(skipped),
+                }
+            )
+            with contextlib.suppress(Exception):
+                fail_batch.transition_to(UploadBatchStatus.FAILED)
+                batch_registry.update(fail_batch)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "error_code": "OBJECT_STORAGE_UNAVAILABLE",
+                    "message": str(exc),
+                },
             ) from exc
         finally:
             await upload.close()
@@ -406,6 +476,46 @@ async def upload_documents(
         files_rejected=len(errors),
         duplicates_detected=len(skipped),
     )
+
+    # T-S02-009: финализируем batch с counter'ами и terminal status.
+    if len(uploaded) == len(files):
+        terminal = UploadBatchStatus.COMPLETED
+    elif len(uploaded) > 0:
+        terminal = UploadBatchStatus.PARTIALLY_COMPLETED
+    else:
+        terminal = UploadBatchStatus.FAILED
+
+    finalized_batch = batch.model_copy(
+        update={
+            "files_uploaded": len(uploaded),
+            "files_rejected": len(errors),
+            "duplicates_detected": len(skipped),
+        }
+    )
+    finalized_batch.transition_to(terminal)
+    batch_registry.update(finalized_batch)
+
+    # T-S02-011: BATCH_COMPLETED audit + T-S02-012: upload_requests_total counter.
+    audit.record(
+        actor_id=principal.user_id,
+        action=AuditAction.BATCH_COMPLETED,
+        target_type="upload_batch",
+        target_id=upload_batch_id,
+        setup_job_id=setup_job_id,
+        payload={
+            "files_total": len(files),
+            "files_uploaded": len(uploaded),
+            "files_rejected": len(errors),
+            "duplicates_detected": len(skipped),
+            "terminal_status": terminal.value,
+        },
+    )
+    metrics.inc(
+        "upload_requests_total",
+        labels={"outcome": terminal.value},
+        help_text="Total upload batch requests by outcome",
+    )
+
     message = (
         f"Uploaded {len(uploaded)} file(s), "
         f"skipped {len(skipped)} duplicate(s), "
@@ -413,7 +523,7 @@ async def upload_documents(
     )
     response = UploadDocumentsResponse(
         setup_job_id=setup_job_id,
-        upload_batch_id=upload_request_id,  # batch_id = request_id для idempotency
+        upload_batch_id=upload_batch_id,
         summary=summary,
         uploaded=uploaded,
         skipped_duplicates=skipped,
@@ -462,6 +572,95 @@ def list_documents(
 
 # Ссылка на SourceDocumentNotFoundError, чтобы не отдалять её от router'а.
 _ = SourceDocumentNotFoundError
+
+
+@router.get(
+    "/{setup_job_id}/documents/{source_document_id}",
+    response_model=SourceDocumentResponse,
+    summary="Get source document metadata (T-S02-015)",
+)
+def get_document_metadata(
+    setup_job_id: str = Path(..., min_length=1),
+    source_document_id: str = Path(..., min_length=1),
+    principal: Principal = Depends(require_permission(Permission.KB_DOCUMENT_UPLOAD)),
+    orchestrator: SetupOrchestrator = Depends(get_orchestrator),
+    registry: InMemorySourceRegistry = Depends(get_source_registry),
+) -> SourceDocumentResponse:
+    """T-S02-015: возвращает metadata одного документа (без binary content)."""
+    try:
+        job = orchestrator.get_job(setup_job_id)
+    except JobNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    _check_job_access(job, principal)
+
+    try:
+        document = registry.get(source_document_id)
+    except SourceDocumentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    # Cross-job protection: документ должен принадлежать этому setup_job_id.
+    if document.setup_job_id != setup_job_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Source document {source_document_id!r} not in job {setup_job_id!r}",
+        )
+
+    include_paths = principal.has_permission(Permission.KB_PUBLISH)
+    return _to_doc_response(document, include_storage_path=include_paths)
+
+
+@router.delete(
+    "/{setup_job_id}/documents/{source_document_id}",
+    response_model=RemoveDocumentResponse,
+    summary="Remove source document (T-S02-014)",
+)
+def delete_document(
+    setup_job_id: str = Path(..., min_length=1),
+    source_document_id: str = Path(..., min_length=1),
+    reason: str | None = Query(default=None, max_length=2000),
+    principal: Principal = Depends(require_permission(Permission.KB_DOCUMENT_DELETE)),
+    orchestrator: SetupOrchestrator = Depends(get_orchestrator),
+    upload_svc: DocumentUploadService = Depends(get_upload_service),
+) -> RemoveDocumentResponse:
+    """T-S02-014: soft-delete документа.
+
+    - Только если job в DRAFT/FILES_UPLOADED (иначе 409).
+    - Идемпотентно: повторный DELETE возвращает тот же `status=removed`.
+    - Cross-job protection: документ должен принадлежать этому setup_job_id.
+    """
+    try:
+        job = orchestrator.get_job(setup_job_id)
+    except JobNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    _check_job_access(job, principal, action="delete document from")
+
+    try:
+        removed = upload_svc.remove_document(
+            setup_job_id=setup_job_id,
+            source_document_id=source_document_id,
+            actor_id=principal.user_id,
+            reason=reason,
+        )
+    except SourceDocumentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    except JobNotAcceptingUploadsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+
+    return RemoveDocumentResponse(
+        setup_job_id=setup_job_id,
+        source_document_id=removed.source_document_id,
+        status=removed.status.value,
+        message=f"Document {removed.source_document_id} removed",
+    )
 
 
 @router.post(

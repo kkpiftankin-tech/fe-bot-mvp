@@ -150,3 +150,45 @@ class TestUpdate:
         doc.checksum = "b" * 64
         with pytest.raises(ValueError, match="checksum"):
             registry.update(doc)
+
+
+class TestRemove:
+    """T-S02-014: soft-delete документа."""
+
+    def test_remove_sets_status_removed(
+        self, registry: InMemorySourceRegistry
+    ) -> None:
+        doc = _make_doc()
+        registry.add(doc)
+        removed = registry.remove(doc.source_document_id)
+        assert removed.status == SourceDocumentStatus.REMOVED
+        # Get тоже возвращает REMOVED
+        re_fetched = registry.get(doc.source_document_id)
+        assert re_fetched.status == SourceDocumentStatus.REMOVED
+
+    def test_remove_releases_dedup_key(
+        self, registry: InMemorySourceRegistry
+    ) -> None:
+        """После remove тот же checksum можно зарегистрировать снова."""
+        doc = _make_doc(checksum="c" * 64)
+        registry.add(doc)
+        registry.remove(doc.source_document_id)
+        # Тот же checksum, новый source_document_id
+        new_doc = _make_doc(source_document_id="src_2", checksum="c" * 64)
+        registry.add(new_doc)  # должно пройти
+        assert registry.find_by_checksum("setup_1", "c" * 64) is not None
+
+    def test_remove_unknown_raises(
+        self, registry: InMemorySourceRegistry
+    ) -> None:
+        with pytest.raises(SourceDocumentNotFoundError):
+            registry.remove("nope")
+
+    def test_remove_idempotent(self, registry: InMemorySourceRegistry) -> None:
+        """Повторный remove возвращает уже-REMOVED без ошибки."""
+        doc = _make_doc()
+        registry.add(doc)
+        first = registry.remove(doc.source_document_id)
+        second = registry.remove(doc.source_document_id)
+        assert first.status == SourceDocumentStatus.REMOVED
+        assert second.status == SourceDocumentStatus.REMOVED

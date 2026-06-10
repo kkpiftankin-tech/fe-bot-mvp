@@ -8,6 +8,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from fe_bot import __version__
+from fe_bot.api.admin.router import router as admin_router
 from fe_bot.api.dependencies import get_metrics
 from fe_bot.api.observability.router import router as observability_router
 from fe_bot.api.setup.router import router as setup_router
@@ -24,6 +25,7 @@ def create_app() -> FastAPI:
     app.include_router(setup_router)
     app.include_router(setup_sse_router)
     app.include_router(observability_router)
+    app.include_router(admin_router)
 
     # Регистрируем metrics в app.state, чтобы middleware и тесты могли его
     # лениво читать (тесты переопределяют этот атрибут per-app).

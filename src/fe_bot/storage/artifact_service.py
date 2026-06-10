@@ -64,6 +64,14 @@ class ArtifactStorage(Protocol):
 
     def presigned_url(self, storage_path: str, expires_in: int = 3600) -> str: ...
 
+    def list_paths(self, prefix: str | None = None) -> list[str]:
+        """T-S02-023: возвращает все storage_paths (опционально с фильтром).
+
+        В Qdrant/MinIO realtime listing дорогой; в продакшене этот метод
+        используется только cleanup'ом (вне горячего пути).
+        """
+        ...
+
 
 class InMemoryArtifactStorage:
     """In-memory реализация для S2/MVP."""
@@ -111,6 +119,11 @@ class InMemoryArtifactStorage:
         if storage_path not in self._store:
             raise ObjectNotFoundError(storage_path)
         return f"{self._base_url}/{storage_path}?expires_in={expires_in}"
+
+    def list_paths(self, prefix: str | None = None) -> list[str]:
+        if prefix is None:
+            return sorted(self._store.keys())
+        return sorted(p for p in self._store if p.startswith(prefix))
 
     @classmethod
     def _make_path(

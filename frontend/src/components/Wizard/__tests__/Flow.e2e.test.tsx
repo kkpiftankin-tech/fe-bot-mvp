@@ -34,8 +34,11 @@ describe("Wizard happy-path flow", () => {
     const fileInput = await screen.findByTestId("file-input");
     await user.upload(fileInput, file);
     await user.click(screen.getByTestId("submit-upload"));
+    // T-S02-020: документы рендерятся в UploadedFilesTable вместо legacy ul.
     await waitFor(() =>
-      expect(screen.getByTestId("doc-list")).toHaveTextContent("doc.md"),
+      expect(
+        screen.getByTestId("uploaded-files-table"),
+      ).toHaveTextContent("doc.md"),
     );
 
     // --- continue to step 3

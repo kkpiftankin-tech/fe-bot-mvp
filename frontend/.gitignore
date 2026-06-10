@@ -12,3 +12,8 @@ dist-ssr
 *.sln
 *.sw?
 coverage
+
+# Transpiled artifacts in src/ — all source must be .ts/.tsx
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts

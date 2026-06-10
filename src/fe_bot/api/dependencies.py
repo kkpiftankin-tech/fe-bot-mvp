@@ -40,6 +40,8 @@ from fe_bot.setup.publish.service import (
 )
 from fe_bot.setup.repository import InMemoryJobRepository
 from fe_bot.setup.source_registry.service import InMemorySourceRegistry
+from fe_bot.setup.upload.batch_registry import InMemoryBatchRegistry
+from fe_bot.setup.upload.cleanup import OrphanCleanupService
 from fe_bot.setup.upload.idempotency import InMemoryIdempotencyCache
 from fe_bot.setup.upload.service import DocumentUploadService
 from fe_bot.storage.artifact_service import InMemoryArtifactStorage
@@ -53,11 +55,16 @@ _event_bus = EventBus()
 _orchestrator = SetupOrchestrator(_job_repository, _event_bus)
 _artifact_storage = InMemoryArtifactStorage()
 _source_registry = InMemorySourceRegistry()
+_audit_log = InMemoryAuditLog()
+_audit_service = AuditService(_audit_log)
+_metrics = MetricsRegistry()
 _upload_service = DocumentUploadService(
     job_repository=_job_repository,
     source_registry=_source_registry,
     artifact_storage=_artifact_storage,
     event_bus=_event_bus,
+    audit_service=_audit_service,
+    metrics=_metrics,
 )
 _parser_service = DocumentParserService(
     artifact_storage=_artifact_storage,
@@ -95,10 +102,12 @@ _retrieval_service = RetrievalService(
 _evaluation_service = RAGEvaluationService(retrieval=_retrieval_service)
 _kb_repository = InMemoryKBRepository()
 _kb_publish = KBPublishService(repository=_kb_repository)
-_audit_log = InMemoryAuditLog()
-_audit_service = AuditService(_audit_log)
-_metrics = MetricsRegistry()
+# _audit_log / _audit_service / _metrics — определены раньше (нужны для DocumentUploadService).
 _idempotency_cache = InMemoryIdempotencyCache()
+_batch_registry = InMemoryBatchRegistry()
+_orphan_cleanup = OrphanCleanupService(
+    storage=_artifact_storage, registry=_source_registry
+)
 
 
 def get_auth_service() -> AuthService:
@@ -187,6 +196,14 @@ def get_metrics() -> MetricsRegistry:
 
 def get_idempotency_cache() -> InMemoryIdempotencyCache:
     return _idempotency_cache
+
+
+def get_batch_registry() -> InMemoryBatchRegistry:
+    return _batch_registry
+
+
+def get_orphan_cleanup_service() -> OrphanCleanupService:
+    return _orphan_cleanup
 
 
 def get_principal(

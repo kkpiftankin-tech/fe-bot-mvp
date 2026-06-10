@@ -327,18 +327,23 @@ Acceptance:
 - Возвращает полный `SourceDocumentResponse` (без бинарного содержимого).
 - `storage_path` маскируется для не-admin (через `_to_doc_response(include_storage_path=False)`).
 
-### T-S02-016. POST /api/v1/setup/{id}/documents/retry (опционально MVP)
+### T-S02-016. POST /api/v1/setup/{id}/documents/retry — **DEFERRED → SETUP-03**
 
-Target:
-- `src/fe_bot/api/setup/router.py`
-- `tests/integration/test_retry_upload.py`
+**Решение (2026-06-10):** перенесено в SETUP-03 / S5.
 
-Acceptance:
-- Принимает list of `source_document_id` со статусом `FAILED`.
-- Повторно прогоняет через DocumentUploadService с тем же binary content (читает из storage если ещё есть, иначе требует re-upload).
-- Если статус не FAILED → 409.
+Причины:
+- Статус `FAILED` декларирован в `SourceDocumentStatus`, но не выставляется
+  в коде. Реальные failure modes (storage_failed, registry_failed) пока не
+  реализованы — `upload()` либо succeed, либо raise.
+- Retry требует persistence исходных байт (для re-upload), что мы не делаем.
+- Без обоих условий endpoint становится заглушкой, которая обманет клиента.
 
-**Опционально MVP**: если решим отложить — оставляем заглушку с 501 и переносим в SETUP-03.
+Замена в MVP: клиент должен заново вызвать `POST /documents` с теми же
+файлами; idempotency cache (T-S02-007) защищает от duplicate side-effects.
+
+Контракт-тест в `tests/contract/test_no_retry_endpoint.py` явно фиксирует
+отсутствие `/documents/retry` в OpenAPI — защита от случайной реализации
+заглушки до того, как закончен дизайн.
 
 ---
 

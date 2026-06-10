@@ -8,12 +8,14 @@ import type {
   PublishKBRequest,
   PublishKBResponse,
   ReindexResponse,
+  RemoveDocumentResponse,
   ReviewRAGCardRequest,
   ReviewRAGCardResponse,
   RunPipelineResponse,
   RunRetrievalTestsRequest,
   SetupJobResponse,
   SetupProgressResponse,
+  SourceDocumentResponse,
   UploadDocumentsResponse,
 } from "./types";
 
@@ -63,6 +65,31 @@ export function listDocuments(
   setupJobId: string,
 ): Promise<ListDocumentsResponse> {
   return apiRequest(`/setup/${setupJobId}/documents`);
+}
+
+/** SETUP-02 / T-S02-015: GET single document metadata. */
+export function getDocumentMetadata(
+  setupJobId: string,
+  sourceDocumentId: string,
+): Promise<SourceDocumentResponse> {
+  return apiRequest(
+    `/setup/${setupJobId}/documents/${encodeURIComponent(sourceDocumentId)}`,
+  );
+}
+
+/** SETUP-02 / T-S02-014: soft-delete документа. */
+export function deleteDocument(
+  setupJobId: string,
+  sourceDocumentId: string,
+  reason?: string,
+): Promise<RemoveDocumentResponse> {
+  return apiRequest(
+    `/setup/${setupJobId}/documents/${encodeURIComponent(sourceDocumentId)}`,
+    {
+      method: "DELETE",
+      query: reason ? { reason } : undefined,
+    },
+  );
 }
 
 // ----- Pipeline -----

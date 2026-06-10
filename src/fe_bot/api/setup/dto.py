@@ -120,6 +120,17 @@ class ListDocumentsResponse(BaseModel):
     count: int
 
 
+class RemoveDocumentResponse(BaseModel):
+    """Ответ DELETE /api/v1/setup/{id}/documents/{doc_id} (T-S02-014)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    setup_job_id: str
+    source_document_id: str
+    status: str  # "removed" (idempotent: тот же ответ для повторного DELETE)
+    message: str | None = None
+
+
 class VectorIndexSummary(BaseModel):
     """Краткая сводка vector_index для ответа /run и /reindex."""
 
