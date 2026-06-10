@@ -1,0 +1,56 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# Test / type / lint caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+
+# Frontend (root-level — frontend/.gitignore покрывает поддиректории)
+node_modules/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.obsidian/
+
+# Local Claude Code settings (personal allowlist).
+# .claude/agents/ и .claude/settings.json — часть проекта, остаются.
+.claude/settings.local.json
+.claude/skills/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Logs
+*.log
+logs/
+
+# Build artifacts (frontend dist already covered by frontend/.gitignore)
+*.tsbuildinfo

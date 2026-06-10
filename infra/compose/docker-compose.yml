@@ -1,0 +1,104 @@
+name: fe-bot
+
+# Profiles let you bring up only what you need (see README.md "Debug Levels"):
+#   --profile infra  -> postgres + qdrant + minio
+#   --profile llm    -> ollama
+#   --profile app    -> the FE-Bot FastAPI/LangGraph container
+#
+# Combine: `docker compose --profile infra --profile llm --profile app up --build`
+
+services:
+  postgres:
+    image: postgres:16
+    profiles: ["infra"]
+    environment:
+      POSTGRES_DB: fe_bot
+      POSTGRES_USER: fe_bot
+      POSTGRES_PASSWORD: fe_bot
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fe_bot -d fe_bot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    profiles: ["infra"]
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:6333/readyz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    profiles: ["infra"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: fe_bot
+      MINIO_ROOT_PASSWORD: fe_bot_secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["llm"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    profiles: ["app"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://fe_bot:fe_bot@postgres:5432/fe_bot
+      VECTOR_DB_URL: http://qdrant:6333
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: llama3.2:latest
+      ARTIFACT_STORE_ENDPOINT: http://minio:9000
+      ARTIFACT_STORE_ACCESS_KEY: fe_bot
+      ARTIFACT_STORE_SECRET_KEY: fe_bot_secret
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      minio:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  minio_data:
+  ollama_data:
