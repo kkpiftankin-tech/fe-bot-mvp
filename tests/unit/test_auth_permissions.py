@@ -37,8 +37,36 @@ class TestPermissionsMatrix:
         assert perms == frozenset(Permission)
 
     def test_auditor_read_only(self) -> None:
+        """T-S03-016: auditor получил read-only доступ к Source Registry."""
         perms = permissions_for_roles(frozenset({Role.AUDITOR}))
-        assert perms == frozenset({Permission.KB_REPORT_READ})
+        assert perms == frozenset(
+            {
+                Permission.KB_REPORT_READ,
+                Permission.KB_SOURCE_LIST,
+                Permission.KB_SOURCE_READ,
+                Permission.KB_SOURCE_LINEAGE_READ,
+                Permission.KB_SOURCE_LOG_READ,
+            }
+        )
+
+    def test_auditor_no_write_permissions(self) -> None:
+        """Auditor НЕ имеет write/delete/admin permissions."""
+        perms = permissions_for_roles(frozenset({Role.AUDITOR}))
+        assert Permission.KB_SOURCE_METADATA_UPDATE not in perms
+        assert Permission.KB_SOURCE_REMOVE not in perms
+        assert Permission.KB_DOCUMENT_UPLOAD not in perms
+        assert Permission.KB_ADMIN_CLEANUP not in perms
+
+    def test_user_has_source_basic_permissions(self) -> None:
+        """T-S03-016: user может видеть и редактировать свои источники."""
+        perms = permissions_for_roles(frozenset({Role.USER}))
+        assert Permission.KB_SOURCE_LIST in perms
+        assert Permission.KB_SOURCE_READ in perms
+        assert Permission.KB_SOURCE_METADATA_UPDATE in perms
+        assert Permission.KB_SOURCE_REMOVE in perms
+        # User не получает lineage/log по умолчанию.
+        assert Permission.KB_SOURCE_LINEAGE_READ not in perms
+        assert Permission.KB_SOURCE_LOG_READ not in perms
 
     def test_multiple_roles_union(self) -> None:
         perms = permissions_for_roles(frozenset({Role.USER, Role.DOMAIN_EXPERT}))

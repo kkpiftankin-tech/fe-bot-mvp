@@ -45,6 +45,12 @@ class AuditAction(StrEnum):
     DOCUMENT_REMOVED = "document.removed"  # T-S02-011: для DELETE (S4)
     BATCH_COMPLETED = "batch.completed"  # T-S02-011: финализация batch
 
+    # SETUP-03 / T-S03-022: Source Registry lifecycle actions.
+    STATUS_CHANGED = "source.status_changed"
+    METADATA_UPDATED = "source.metadata_updated"
+    LINEAGE_ADDED = "source.lineage_added"
+    PROCESSING_RETRY_TRIGGERED = "source.retry_triggered"
+
     # Pipeline
     PIPELINE_STARTED = "pipeline.started"
     PIPELINE_STEP_COMPLETED = "pipeline.step_completed"

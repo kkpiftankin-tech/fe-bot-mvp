@@ -26,7 +26,9 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
+from schemas.setup.processing_log import ProcessingLogStep
 from schemas.setup.rag_setup_job import SetupJobStatus
 from schemas.setup.source_document import SourceDocument, SourceDocumentStatus
 
@@ -34,6 +36,9 @@ from fe_bot.audit.service import AuditAction, AuditOutcome, AuditService
 from fe_bot.observability.metrics import MetricsRegistry
 from fe_bot.setup.events import EventBus, SetupProgressEvent
 from fe_bot.setup.repository import JobRepository
+
+if TYPE_CHECKING:
+    from fe_bot.setup.source_registry.lifecycle import SourceLifecycleService
 from fe_bot.setup.source_registry.service import (
     DuplicateDocumentError,
     SourceRegistry,
@@ -88,6 +93,7 @@ class DocumentUploadService:
         event_bus: EventBus,
         audit_service: AuditService | None = None,
         metrics: MetricsRegistry | None = None,
+        lifecycle: SourceLifecycleService | None = None,
     ) -> None:
         self._jobs = job_repository
         self._registry = source_registry
@@ -95,6 +101,8 @@ class DocumentUploadService:
         self._bus = event_bus
         self._audit = audit_service
         self._metrics = metrics
+        # SETUP-03 / T-S03-019: автоматический REGISTERED + processing log.
+        self._lifecycle = lifecycle
 
     def upload(
         self,
@@ -237,6 +245,29 @@ class DocumentUploadService:
             time.perf_counter() - registry_start,
             labels={"phase": "registry"},
         )
+
+        # T-S03-019: автоматическая регистрация в Source Registry lifecycle.
+        # Idempotent по event_id (если сервис уже был вызван — no-op).
+        if self._lifecycle is not None:
+            self._lifecycle.update_status(
+                source_document_id=source_document_id,
+                new_status=SourceDocumentStatus.REGISTERED,
+                event_id=f"upload:registered:{source_document_id}",
+                reason="Document registered after upload",
+                changed_by_id="document-upload-service",
+            )
+            self._lifecycle.append_processing_log(
+                source_document_id=source_document_id,
+                setup_job_id=setup_job_id,
+                step=ProcessingLogStep.UPLOAD,
+                message=f"Document uploaded ({size_bytes} bytes)",
+                event_id=f"upload:log:{source_document_id}",
+                payload={
+                    "filename": filename,
+                    "content_type": content_type,
+                    "size_bytes": size_bytes,
+                },
+            )
 
         # Продвигаем job draft → files_uploaded только на первой загрузке.
         if job.status == SetupJobStatus.DRAFT:

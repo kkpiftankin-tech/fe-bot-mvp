@@ -3,11 +3,14 @@ import { ApiError } from "./types";
 const DEFAULT_BASE_URL = "/api/v1";
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   headers?: Record<string, string>;
   formData?: FormData;
-  query?: Record<string, string | number | boolean | undefined>;
+  query?: Record<
+    string,
+    string | number | boolean | string[] | undefined
+  >;
 }
 
 export interface AuthHeaders {
@@ -29,7 +32,10 @@ function buildUrl(path: string, query?: RequestOptions["query"]): string {
   const url = new URL(`${DEFAULT_BASE_URL}${path}`, window.location.origin);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
-      if (value !== undefined && value !== null) {
+      if (value === undefined || value === null) continue;
+      if (Array.isArray(value)) {
+        for (const v of value) url.searchParams.append(key, String(v));
+      } else {
         url.searchParams.set(key, String(value));
       }
     }

@@ -156,6 +156,160 @@ export const handlers = [
     return HttpResponse.json(doc);
   }),
 
+  // SETUP-03 / T-S03-023: source registry endpoints.
+  http.get("/api/v1/setup/:sid/sources", ({ params }) => {
+    // Возвращаем мокированные данные без проверки state.jobs.
+    const job = state.jobs.get(params.sid as string);
+    const items = (job?.documents ?? []).map((d) => ({
+      source_document_id: d.source_document_id,
+      setup_job_id: d.setup_job_id,
+      filename: d.filename,
+      document_kind: null,
+      content_type: d.content_type,
+      size_bytes: d.size_bytes,
+      checksum_short: d.checksum.slice(0, 12),
+      status: d.status,
+      uploaded_by: d.uploaded_by,
+      uploaded_at: d.uploaded_at,
+      parsed_sections_count: 0,
+      rag_cards_count: 0,
+      chunks_count: 0,
+      last_error: null,
+    }));
+    return HttpResponse.json({
+      setup_job_id: params.sid as string,
+      items,
+      pagination: { page: 1, page_size: 20, total: items.length },
+    });
+  }),
+
+  http.get("/api/v1/setup/:sid/sources/:docId", ({ params }) => {
+    // Не зависим от state.jobs — drawer всегда вызывается после listSources.
+    return HttpResponse.json({
+      source_document_id: params.docId as string,
+      setup_job_id: params.sid as string,
+      filename: "doc.md",
+      original_filename: "doc.md",
+      content_type: "text/markdown",
+      size_bytes: 1024,
+      checksum: "a".repeat(64),
+      checksum_algorithm: "sha256",
+      storage_path: null,
+      status: "registered",
+      document_kind: null,
+      detected_language: null,
+      uploaded_by: "u1",
+      uploaded_at: "2026-06-11T10:00:00Z",
+      parsed_at: null,
+      error_message: null,
+      user_metadata: {},
+      system_metadata: {},
+      counters: {
+        parsed_sections_count: 0,
+        rag_cards_count: 0,
+        chunks_count: 0,
+        embeddings_count: 0,
+        processing_reports_count: 0,
+        knowledge_base_versions_count: 0,
+      },
+      last_status_change: null,
+    });
+  }),
+
+  http.get("/api/v1/setup/:sid/sources/:docId/status-history", ({ params }) => {
+    return HttpResponse.json({
+      source_document_id: params.docId as string,
+      items: [
+        {
+          status_history_id: "hist_001",
+          source_document_id: params.docId as string,
+          old_status: "uploaded",
+          new_status: "registered",
+          reason: "Document registered after upload",
+          event_id: "evt_001",
+          changed_by_type: "service",
+          changed_by_id: "document-upload-service",
+          changed_at: "2026-06-11T10:00:00Z",
+          metadata: {},
+        },
+      ],
+      pagination: { page: 1, page_size: 50, total: 1 },
+    });
+  }),
+
+  http.get(
+    "/api/v1/setup/:sid/sources/:docId/processing-log",
+    ({ params }) => {
+      return HttpResponse.json({
+        source_document_id: params.docId as string,
+        items: [
+          {
+            processing_log_id: "log_001",
+            source_document_id: params.docId as string,
+            setup_job_id: params.sid as string,
+            step: "upload",
+            level: "info",
+            message: "Document uploaded",
+            error_code: null,
+            event_id: "evt_log",
+            created_at: "2026-06-11T10:00:00Z",
+            payload: {},
+          },
+        ],
+        pagination: { page: 1, page_size: 50, total: 1 },
+      });
+    },
+  ),
+
+  http.get("/api/v1/setup/:sid/sources/:docId/lineage", ({ params }) => {
+    return HttpResponse.json({
+      source_document_id: params.docId as string,
+      relations: [],
+      counters: {
+        parsed_sections_count: 0,
+        rag_cards_count: 0,
+        chunks_count: 0,
+        embeddings_count: 0,
+        processing_reports_count: 0,
+        knowledge_base_versions_count: 0,
+      },
+    });
+  }),
+
+  http.patch(
+    "/api/v1/setup/:sid/sources/:docId/metadata",
+    async ({ params, request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json({
+        source_document_id: params.docId as string,
+        setup_job_id: params.sid as string,
+        user_metadata: body,
+        updated_at: "2026-06-11T10:00:00Z",
+        message: "ok",
+      });
+    },
+  ),
+
+  http.delete("/api/v1/setup/:sid/sources/:docId", ({ params }) => {
+    return HttpResponse.json({
+      source_document_id: params.docId as string,
+      setup_job_id: params.sid as string,
+      status: "removed",
+      message: "Document removed",
+    });
+  }),
+
+  http.post("/api/v1/setup/:sid/sources/:docId/retry", ({ params, request }) => {
+    const url = new URL(request.url);
+    return HttpResponse.json({
+      source_document_id: params.docId as string,
+      setup_job_id: params.sid as string,
+      status: "waiting_for_parsing",
+      from_step: url.searchParams.get("from_step") ?? "parsing",
+      message: "Retry triggered",
+    });
+  }),
+
   http.post("/api/v1/setup/:sid/run", ({ params }) => {
     const job = state.jobs.get(params.sid as string);
     if (!job) return HttpResponse.json({ detail: "not found" }, { status: 404 });

@@ -45,7 +45,8 @@ class TestGetDocumentMetadata:
         assert body["filename"] == "doc.md"
         assert body["content_type"] == "text/markdown"
         assert body["checksum"]  # SHA-256 присутствует
-        assert body["status"] == "uploaded"
+        # T-S03-019: upload автоматически переводит в REGISTERED.
+        assert body["status"] == "registered"
 
     def test_storage_path_masked_for_non_admin(
         self, client: TestClient, auth_headers: dict[str, str]

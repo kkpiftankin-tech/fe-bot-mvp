@@ -25,14 +25,18 @@ from fe_bot.api.dependencies import (
     get_job_repository,
     get_kb_publish_service,
     get_kb_repository,
+    get_lineage_repo,
     get_metadata_validation,
     get_metrics,
     get_orchestrator,
     get_orphan_cleanup_service,
     get_parser_service,
     get_pipeline,
+    get_processing_log_repo,
     get_retrieval_service,
+    get_source_lifecycle,
     get_source_registry,
+    get_status_history_repo,
     get_upload_service,
     get_vector_index_client,
     get_vector_indexer,
@@ -61,7 +65,15 @@ from fe_bot.setup.publish.service import (
     KBPublishService,
 )
 from fe_bot.setup.repository import InMemoryJobRepository
+from fe_bot.setup.source_registry.lifecycle import SourceLifecycleService
+from fe_bot.setup.source_registry.lineage import InMemoryLineageRepository
+from fe_bot.setup.source_registry.processing_log import (
+    InMemoryProcessingLogRepository,
+)
 from fe_bot.setup.source_registry.service import InMemorySourceRegistry
+from fe_bot.setup.source_registry.status_history import (
+    InMemoryStatusHistoryRepository,
+)
 from fe_bot.setup.upload.batch_registry import InMemoryBatchRegistry
 from fe_bot.setup.upload.cleanup import OrphanCleanupService
 from fe_bot.setup.upload.idempotency import InMemoryIdempotencyCache
@@ -89,6 +101,19 @@ def app_with_clean_state() -> FastAPI:
     audit_log = InMemoryAuditLog()
     audit_svc = AuditService(audit_log)
     metrics_registry = MetricsRegistry()
+    # SETUP-03 / T-S03-019: lifecycle service для auto registration after upload.
+    status_history_repo = InMemoryStatusHistoryRepository()
+    processing_log_repo = InMemoryProcessingLogRepository()
+    lineage_repo = InMemoryLineageRepository()
+    source_lifecycle = SourceLifecycleService(
+        registry=registry,
+        status_history=status_history_repo,
+        processing_log=processing_log_repo,
+        lineage=lineage_repo,
+        event_bus=bus,
+        audit_service=audit_svc,
+        metrics=metrics_registry,
+    )
     upload_svc = DocumentUploadService(
         job_repository=repo,
         source_registry=registry,
@@ -96,6 +121,7 @@ def app_with_clean_state() -> FastAPI:
         event_bus=bus,
         audit_service=audit_svc,
         metrics=metrics_registry,
+        lifecycle=source_lifecycle,
     )
     parser_svc = DocumentParserService(
         artifact_storage=storage, source_registry=registry
@@ -151,6 +177,7 @@ def app_with_clean_state() -> FastAPI:
     idempotency_cache = InMemoryIdempotencyCache()
     batch_registry = InMemoryBatchRegistry()
     orphan_cleanup = OrphanCleanupService(storage=storage, registry=registry)
+    # (SETUP-03 lifecycle создан выше — нужен для upload_svc.)
     # Подменяем metrics-registry в app.state — middleware читает оттуда.
     app.state.metrics = metrics_registry
 
@@ -177,6 +204,11 @@ def app_with_clean_state() -> FastAPI:
     app.dependency_overrides[get_idempotency_cache] = lambda: idempotency_cache
     app.dependency_overrides[get_batch_registry] = lambda: batch_registry
     app.dependency_overrides[get_orphan_cleanup_service] = lambda: orphan_cleanup
+    # SETUP-03 wiring.
+    app.dependency_overrides[get_status_history_repo] = lambda: status_history_repo
+    app.dependency_overrides[get_processing_log_repo] = lambda: processing_log_repo
+    app.dependency_overrides[get_lineage_repo] = lambda: lineage_repo
+    app.dependency_overrides[get_source_lifecycle] = lambda: source_lifecycle
     yield app
     app.dependency_overrides.clear()
     # Очистка module-level singletons (на всякий случай для других тестов).
@@ -204,3 +236,12 @@ def auth_headers() -> dict[str, str]:
 @pytest.fixture
 def admin_headers() -> dict[str, str]:
     return {"X-User-Id": "admin1", "X-Roles": "admin"}
+
+
+@pytest.fixture
+def expert_headers() -> dict[str, str]:
+    """Domain expert — имеет kb.source.lineage.read и kb.source.log.read.
+
+    User по спеку (§5.3) этих permissions не получает.
+    """
+    return {"X-User-Id": "expert1", "X-Roles": "domain_expert"}

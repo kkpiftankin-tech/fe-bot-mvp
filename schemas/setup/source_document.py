@@ -16,6 +16,14 @@ from schemas.common.defaults import MAX_FILE_SIZE_BYTES, SUPPORTED_CONTENT_TYPES
 
 
 class SourceDocumentStatus(StrEnum):
+    """Lifecycle статусы документа в Source Registry.
+
+    Расширено в SETUP-03 / T-S03-001: добавлены 13 новых статусов из §3 спека.
+    Старые статусы (UPLOADED, PARSED, CONVERTED, FAILED, FAILED_VALIDATION,
+    ARCHIVED, REMOVED) сохранены для обратной совместимости с SETUP-01/02.
+    """
+
+    # Legacy (SETUP-01/02)
     UPLOADED = "uploaded"
     PARSED = "parsed"
     CONVERTED = "converted"
@@ -23,6 +31,21 @@ class SourceDocumentStatus(StrEnum):
     FAILED_VALIDATION = "failed_validation"  # T-S02-001: backend validation rejected
     ARCHIVED = "archived"
     REMOVED = "removed"  # T-S02-001: soft-delete via DELETE /documents/{id}
+
+    # SETUP-03 / T-S03-001: extended lifecycle
+    REGISTERED = "registered"  # запись создана в Source Registry
+    METADATA_EXTRACTED = "metadata_extracted"  # technical metadata извлечена
+    WAITING_FOR_PARSING = "waiting_for_parsing"
+    PARSING = "parsing"
+    PARSE_FAILED = "parse_failed"
+    SECTIONS_EXTRACTED = "sections_extracted"
+    RAG_CARDS_GENERATING = "rag_cards_generating"
+    RAG_CARDS_GENERATED = "rag_cards_generated"
+    REVIEW_REQUIRED = "review_required"
+    PROCESSING_FAILED = "processing_failed"
+    READY_FOR_INDEXING = "ready_for_indexing"
+    PUBLISHED = "published"  # вошёл в активную KB version
+    DEPRECATED = "deprecated"  # устарел, не используется в новой KB
 
 
 class DocumentKind(StrEnum):

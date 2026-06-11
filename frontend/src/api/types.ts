@@ -130,6 +130,213 @@ export interface RemoveDocumentResponse {
   message?: string | null;
 }
 
+// ============================================================
+// SETUP-03 / T-S03-023: Source Registry types
+// ============================================================
+
+export type SourceDocumentStatus =
+  | "uploaded"
+  | "parsed"
+  | "converted"
+  | "failed"
+  | "failed_validation"
+  | "archived"
+  | "removed"
+  | "registered"
+  | "metadata_extracted"
+  | "waiting_for_parsing"
+  | "parsing"
+  | "parse_failed"
+  | "sections_extracted"
+  | "rag_cards_generating"
+  | "rag_cards_generated"
+  | "review_required"
+  | "processing_failed"
+  | "ready_for_indexing"
+  | "published"
+  | "deprecated";
+
+export type ChangedByType = "service" | "user" | "system";
+
+export type LineageTargetType =
+  | "parsed_section"
+  | "rag_card"
+  | "chunk"
+  | "embedding"
+  | "processing_report"
+  | "knowledge_base_version";
+
+export type LineageRelationType =
+  | "parsed_from"
+  | "generated_from"
+  | "derived_from"
+  | "included_in"
+  | "referenced_by";
+
+export type ProcessingLogLevel = "debug" | "info" | "warning" | "error";
+
+export type ProcessingLogStep =
+  | "upload"
+  | "registration"
+  | "metadata_extraction"
+  | "parsing"
+  | "section_extraction"
+  | "rag_card_generation"
+  | "chunking"
+  | "embedding"
+  | "indexing"
+  | "review"
+  | "publish"
+  | "cleanup"
+  | "retry";
+
+export interface PaginationDTO {
+  page: number;
+  page_size: number;
+  total: number;
+}
+
+export interface LineageCounters {
+  parsed_sections_count: number;
+  rag_cards_count: number;
+  chunks_count: number;
+  embeddings_count: number;
+  processing_reports_count: number;
+  knowledge_base_versions_count: number;
+}
+
+export interface SourceDocumentListItemDTO {
+  source_document_id: string;
+  setup_job_id: string;
+  filename: string;
+  document_kind: string | null;
+  content_type: string;
+  size_bytes: number;
+  checksum_short: string;
+  status: SourceDocumentStatus;
+  uploaded_by: string;
+  uploaded_at: string;
+  parsed_sections_count: number;
+  rag_cards_count: number;
+  chunks_count: number;
+  last_error: string | null;
+}
+
+export interface ListSourcesResponse {
+  setup_job_id: string;
+  items: SourceDocumentListItemDTO[];
+  pagination: PaginationDTO;
+}
+
+export interface SourceDocumentDetailsDTO {
+  source_document_id: string;
+  setup_job_id: string;
+  filename: string;
+  original_filename: string;
+  content_type: string;
+  size_bytes: number;
+  checksum: string;
+  checksum_algorithm: string;
+  storage_path: string | null;
+  status: SourceDocumentStatus;
+  document_kind: string | null;
+  detected_language: string | null;
+  uploaded_by: string;
+  uploaded_at: string;
+  parsed_at: string | null;
+  error_message: string | null;
+  user_metadata: Record<string, unknown>;
+  system_metadata: Record<string, unknown>;
+  counters: LineageCounters;
+  last_status_change: string | null;
+}
+
+export interface StatusHistoryEntryDTO {
+  status_history_id: string;
+  source_document_id: string;
+  old_status: SourceDocumentStatus | null;
+  new_status: SourceDocumentStatus;
+  reason: string | null;
+  event_id: string;
+  changed_by_type: ChangedByType;
+  changed_by_id: string;
+  changed_at: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface StatusHistoryResponse {
+  source_document_id: string;
+  items: StatusHistoryEntryDTO[];
+  pagination: PaginationDTO;
+}
+
+export interface ProcessingLogEntryDTO {
+  processing_log_id: string;
+  source_document_id: string;
+  setup_job_id: string;
+  step: ProcessingLogStep;
+  level: ProcessingLogLevel;
+  message: string;
+  error_code: string | null;
+  event_id: string;
+  created_at: string;
+  payload: Record<string, unknown>;
+}
+
+export interface ProcessingLogResponse {
+  source_document_id: string;
+  items: ProcessingLogEntryDTO[];
+  pagination: PaginationDTO;
+}
+
+export interface LineageRelationDTO {
+  lineage_id: string;
+  source_document_id: string;
+  target_type: string;
+  target_id: string;
+  relation_type: string;
+  created_by_service: string;
+  event_id: string;
+  created_at: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface LineageResponse {
+  source_document_id: string;
+  relations: LineageRelationDTO[];
+  counters: LineageCounters;
+}
+
+export interface UpdateSourceMetadataRequest {
+  tags?: string[];
+  description?: string | null;
+  owner_note?: string | null;
+  custom_labels?: Record<string, string>;
+}
+
+export interface PatchSourceMetadataResponse {
+  source_document_id: string;
+  setup_job_id: string;
+  user_metadata: Record<string, unknown>;
+  updated_at: string;
+  message?: string | null;
+}
+
+export interface RemoveSourceResponse {
+  source_document_id: string;
+  setup_job_id: string;
+  status: string;
+  message?: string | null;
+}
+
+export interface RetrySourceResponse {
+  source_document_id: string;
+  setup_job_id: string;
+  status: string;
+  from_step: string;
+  message?: string | null;
+}
+
 export interface VectorIndexSummary {
   index_version: string;
   status: string;

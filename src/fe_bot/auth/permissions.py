@@ -21,6 +21,14 @@ class Permission(StrEnum):
     KB_REPORT_READ = "kb.report.read"
     KB_ADMIN_CLEANUP = "kb.admin.cleanup"  # SETUP-02 / T-S02-023
 
+    # SETUP-03 / T-S03-016: source registry permissions family.
+    KB_SOURCE_LIST = "kb.source.list"
+    KB_SOURCE_READ = "kb.source.read"
+    KB_SOURCE_METADATA_UPDATE = "kb.source.metadata.update"
+    KB_SOURCE_REMOVE = "kb.source.remove"
+    KB_SOURCE_LINEAGE_READ = "kb.source.lineage.read"
+    KB_SOURCE_LOG_READ = "kb.source.log.read"
+
 
 class Role(StrEnum):
     USER = "user"
@@ -40,6 +48,11 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_DOCUMENT_DELETE,
             Permission.KB_SETUP_RUN,
             Permission.KB_REPORT_READ,
+            # SETUP-03: user видит и редактирует свои документы.
+            Permission.KB_SOURCE_LIST,
+            Permission.KB_SOURCE_READ,
+            Permission.KB_SOURCE_METADATA_UPDATE,
+            Permission.KB_SOURCE_REMOVE,
         }
     ),
     Role.DOMAIN_EXPERT: frozenset(
@@ -50,6 +63,12 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_SETUP_RUN,
             Permission.KB_CARD_REVIEW,
             Permission.KB_REPORT_READ,
+            # Эксперт видит lineage/log для проверки источников.
+            Permission.KB_SOURCE_LIST,
+            Permission.KB_SOURCE_READ,
+            Permission.KB_SOURCE_METADATA_UPDATE,
+            Permission.KB_SOURCE_LINEAGE_READ,
+            Permission.KB_SOURCE_LOG_READ,
         }
     ),
     Role.RAG_ADMIN: frozenset(
@@ -61,10 +80,26 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_CARD_REVIEW,
             Permission.KB_PUBLISH,
             Permission.KB_REPORT_READ,
+            # RAG-админ имеет полный доступ к Source Registry.
+            Permission.KB_SOURCE_LIST,
+            Permission.KB_SOURCE_READ,
+            Permission.KB_SOURCE_METADATA_UPDATE,
+            Permission.KB_SOURCE_REMOVE,
+            Permission.KB_SOURCE_LINEAGE_READ,
+            Permission.KB_SOURCE_LOG_READ,
         }
     ),
     Role.ADMIN: frozenset(Permission),  # все
-    Role.AUDITOR: frozenset({Permission.KB_REPORT_READ}),
+    Role.AUDITOR: frozenset(
+        {
+            Permission.KB_REPORT_READ,
+            # Auditor — read-only по всему Source Registry.
+            Permission.KB_SOURCE_LIST,
+            Permission.KB_SOURCE_READ,
+            Permission.KB_SOURCE_LINEAGE_READ,
+            Permission.KB_SOURCE_LOG_READ,
+        }
+    ),
 }
 
 

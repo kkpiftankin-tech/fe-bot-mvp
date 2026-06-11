@@ -39,7 +39,15 @@ from fe_bot.setup.publish.service import (
     KBPublishService,
 )
 from fe_bot.setup.repository import InMemoryJobRepository
+from fe_bot.setup.source_registry.lifecycle import SourceLifecycleService
+from fe_bot.setup.source_registry.lineage import InMemoryLineageRepository
+from fe_bot.setup.source_registry.processing_log import (
+    InMemoryProcessingLogRepository,
+)
 from fe_bot.setup.source_registry.service import InMemorySourceRegistry
+from fe_bot.setup.source_registry.status_history import (
+    InMemoryStatusHistoryRepository,
+)
 from fe_bot.setup.upload.batch_registry import InMemoryBatchRegistry
 from fe_bot.setup.upload.cleanup import OrphanCleanupService
 from fe_bot.setup.upload.idempotency import InMemoryIdempotencyCache
@@ -58,6 +66,22 @@ _source_registry = InMemorySourceRegistry()
 _audit_log = InMemoryAuditLog()
 _audit_service = AuditService(_audit_log)
 _metrics = MetricsRegistry()
+
+# SETUP-03: Source Registry repositories + lifecycle service.
+# Создаём до _upload_service — он использует lifecycle для T-S03-019.
+_status_history_repo = InMemoryStatusHistoryRepository()
+_processing_log_repo = InMemoryProcessingLogRepository()
+_lineage_repo = InMemoryLineageRepository()
+_source_lifecycle = SourceLifecycleService(
+    registry=_source_registry,
+    status_history=_status_history_repo,
+    processing_log=_processing_log_repo,
+    lineage=_lineage_repo,
+    event_bus=_event_bus,  # T-S03-020: source.document.* events
+    audit_service=_audit_service,  # T-S03-022
+    metrics=_metrics,
+)
+
 _upload_service = DocumentUploadService(
     job_repository=_job_repository,
     source_registry=_source_registry,
@@ -65,6 +89,7 @@ _upload_service = DocumentUploadService(
     event_bus=_event_bus,
     audit_service=_audit_service,
     metrics=_metrics,
+    lifecycle=_source_lifecycle,
 )
 _parser_service = DocumentParserService(
     artifact_storage=_artifact_storage,
@@ -204,6 +229,25 @@ def get_batch_registry() -> InMemoryBatchRegistry:
 
 def get_orphan_cleanup_service() -> OrphanCleanupService:
     return _orphan_cleanup
+
+
+# SETUP-03 DI factories.
+
+
+def get_status_history_repo() -> InMemoryStatusHistoryRepository:
+    return _status_history_repo
+
+
+def get_processing_log_repo() -> InMemoryProcessingLogRepository:
+    return _processing_log_repo
+
+
+def get_lineage_repo() -> InMemoryLineageRepository:
+    return _lineage_repo
+
+
+def get_source_lifecycle() -> SourceLifecycleService:
+    return _source_lifecycle
 
 
 def get_principal(

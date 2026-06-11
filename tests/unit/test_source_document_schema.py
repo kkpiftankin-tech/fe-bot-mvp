@@ -105,8 +105,9 @@ class TestSourceDocument:
         assert doc.document_kind is None
 
     def test_all_statuses(self) -> None:
-        # SETUP-02 / T-S02-001: добавлены failed_validation + removed.
+        """SETUP-03 / T-S03-001: 20 статусов (7 legacy + 13 lifecycle)."""
         assert {s.value for s in SourceDocumentStatus} == {
+            # Legacy (SETUP-01/02)
             "uploaded",
             "parsed",
             "converted",
@@ -114,7 +115,55 @@ class TestSourceDocument:
             "failed_validation",
             "archived",
             "removed",
+            # SETUP-03 lifecycle
+            "registered",
+            "metadata_extracted",
+            "waiting_for_parsing",
+            "parsing",
+            "parse_failed",
+            "sections_extracted",
+            "rag_cards_generating",
+            "rag_cards_generated",
+            "review_required",
+            "processing_failed",
+            "ready_for_indexing",
+            "published",
+            "deprecated",
         }
+
+    def test_setup_03_lifecycle_statuses_present(self) -> None:
+        """T-S03-001: проверяем что все 13 новых статусов из §3 спека добавлены."""
+        new_statuses = {
+            SourceDocumentStatus.REGISTERED,
+            SourceDocumentStatus.METADATA_EXTRACTED,
+            SourceDocumentStatus.WAITING_FOR_PARSING,
+            SourceDocumentStatus.PARSING,
+            SourceDocumentStatus.PARSE_FAILED,
+            SourceDocumentStatus.SECTIONS_EXTRACTED,
+            SourceDocumentStatus.RAG_CARDS_GENERATING,
+            SourceDocumentStatus.RAG_CARDS_GENERATED,
+            SourceDocumentStatus.REVIEW_REQUIRED,
+            SourceDocumentStatus.PROCESSING_FAILED,
+            SourceDocumentStatus.READY_FOR_INDEXING,
+            SourceDocumentStatus.PUBLISHED,
+            SourceDocumentStatus.DEPRECATED,
+        }
+        assert len(new_statuses) == 13
+        for s in new_statuses:
+            assert s in SourceDocumentStatus
+
+    def test_legacy_statuses_preserved(self) -> None:
+        """T-S03-001: backward compat — старые статусы не удалены."""
+        legacy = {
+            SourceDocumentStatus.UPLOADED,
+            SourceDocumentStatus.PARSED,
+            SourceDocumentStatus.CONVERTED,
+            SourceDocumentStatus.FAILED,
+            SourceDocumentStatus.FAILED_VALIDATION,
+            SourceDocumentStatus.ARCHIVED,
+            SourceDocumentStatus.REMOVED,
+        }
+        assert len(legacy) == 7
 
     def test_checksum_must_be_sha256_64hex(self) -> None:
         with pytest.raises(ValidationError):
