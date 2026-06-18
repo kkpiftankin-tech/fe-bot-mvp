@@ -158,14 +158,10 @@ async def stream_events(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     # Только owner или privileged может слушать события.
-    if job.user_id != principal.user_id and not principal.has_permission(
-        Permission.KB_PUBLISH
-    ):
+    if job.user_id != principal.user_id and not principal.has_permission(Permission.KB_PUBLISH):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot subscribe to events of job owned by another user",

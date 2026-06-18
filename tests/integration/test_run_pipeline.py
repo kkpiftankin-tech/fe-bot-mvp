@@ -27,9 +27,7 @@ def _upload_md(
     sid = create.json()["setup_job_id"]
     if contents is None:
         contents = [("doc.md", b"# Task description\n\nSome body text.")]
-    files = [
-        ("files", (name, data, "text/markdown")) for name, data in contents
-    ]
+    files = [("files", (name, data, "text/markdown")) for name, data in contents]
     up = client.post(
         f"/api/v1/setup/{sid}/documents",
         files=files,
@@ -69,9 +67,7 @@ class TestRunPipelineHappyPath:
         status_resp = client.get(f"/api/v1/setup/{sid}", headers=auth_headers)
         assert status_resp.json()["status"] == "review_required"
 
-    def test_run_multiple_documents(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_run_multiple_documents(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _upload_md(
             client,
             auth_headers,

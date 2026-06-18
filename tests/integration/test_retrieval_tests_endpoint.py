@@ -59,9 +59,7 @@ def _seed_vector_index(client: InMemoryVectorIndexClient) -> None:
     )
 
 
-def _add_card(
-    registry: InMemoryRAGCardRegistry, setup_job_id: str, doc_id: str
-) -> None:
+def _add_card(registry: InMemoryRAGCardRegistry, setup_job_id: str, doc_id: str) -> None:
     card = RAGCard(
         doc_id=doc_id,
         doc_type=DocType.ANALYTICS_CARD,

@@ -11,6 +11,7 @@ from fe_bot import __version__
 from fe_bot.api.admin.router import router as admin_router
 from fe_bot.api.dependencies import get_metrics
 from fe_bot.api.observability.router import router as observability_router
+from fe_bot.api.setup.parse_router import router as parse_router
 from fe_bot.api.setup.router import router as setup_router
 from fe_bot.api.setup.sources_router import router as sources_router
 from fe_bot.api.setup.sse import router as setup_sse_router
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(setup_router)
     app.include_router(sources_router)
+    app.include_router(parse_router)
     app.include_router(setup_sse_router)
     app.include_router(observability_router)
     app.include_router(admin_router)

@@ -29,6 +29,13 @@ class Permission(StrEnum):
     KB_SOURCE_LINEAGE_READ = "kb.source.lineage.read"
     KB_SOURCE_LOG_READ = "kb.source.log.read"
 
+    # SETUP-04 / T-S04-023: document parsing permissions family.
+    KB_PARSE_RUN = "kb.parse.run"
+    KB_PARSE_STATUS_READ = "kb.parse.status.read"
+    KB_SECTION_READ = "kb.section.read"
+    KB_PARSE_RETRY = "kb.parse.retry"
+    KB_PARSE_CANCEL = "kb.parse.cancel"
+
 
 class Role(StrEnum):
     USER = "user"
@@ -53,6 +60,10 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_SOURCE_READ,
             Permission.KB_SOURCE_METADATA_UPDATE,
             Permission.KB_SOURCE_REMOVE,
+            # SETUP-04: user может запускать парсинг и читать его результат.
+            Permission.KB_PARSE_RUN,
+            Permission.KB_PARSE_STATUS_READ,
+            Permission.KB_SECTION_READ,
         }
     ),
     Role.DOMAIN_EXPERT: frozenset(
@@ -69,6 +80,11 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_SOURCE_METADATA_UPDATE,
             Permission.KB_SOURCE_LINEAGE_READ,
             Permission.KB_SOURCE_LOG_READ,
+            # SETUP-04: эксперт может ретраить упавшие документы.
+            Permission.KB_PARSE_RUN,
+            Permission.KB_PARSE_STATUS_READ,
+            Permission.KB_SECTION_READ,
+            Permission.KB_PARSE_RETRY,
         }
     ),
     Role.RAG_ADMIN: frozenset(
@@ -87,6 +103,12 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_SOURCE_REMOVE,
             Permission.KB_SOURCE_LINEAGE_READ,
             Permission.KB_SOURCE_LOG_READ,
+            # SETUP-04: RAG-админ — полный доступ к парсингу.
+            Permission.KB_PARSE_RUN,
+            Permission.KB_PARSE_STATUS_READ,
+            Permission.KB_SECTION_READ,
+            Permission.KB_PARSE_RETRY,
+            Permission.KB_PARSE_CANCEL,
         }
     ),
     Role.ADMIN: frozenset(Permission),  # все
@@ -98,6 +120,9 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_SOURCE_READ,
             Permission.KB_SOURCE_LINEAGE_READ,
             Permission.KB_SOURCE_LOG_READ,
+            # SETUP-04: auditor видит статус парсинга и секции.
+            Permission.KB_PARSE_STATUS_READ,
+            Permission.KB_SECTION_READ,
         }
     ),
 }

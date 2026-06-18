@@ -58,9 +58,7 @@ class TestDocumentUploadedAudit:
             headers=auth_headers,
         )
         events = _audit_log(app_with_clean_state).list_for_job(sid)
-        uploaded = next(
-            e for e in events if e.action == AuditAction.DOCUMENT_UPLOADED
-        )
+        uploaded = next(e for e in events if e.action == AuditAction.DOCUMENT_UPLOADED)
         assert uploaded.actor_id == "u1"
 
 
@@ -141,13 +139,9 @@ class TestBatchCompletedAudit:
             ("files", ("good.md", b"ok", "text/markdown")),
             ("files", ("bad.exe", b"bad", "application/x-msdownload")),
         ]
-        client.post(
-            f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers
-        )
+        client.post(f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers)
         events = _audit_log(app_with_clean_state).list_for_job(sid)
-        batch = next(
-            e for e in events if e.action == AuditAction.BATCH_COMPLETED
-        )
+        batch = next(e for e in events if e.action == AuditAction.BATCH_COMPLETED)
         assert batch.payload["terminal_status"] == "partially_completed"
         assert batch.payload["files_rejected"] == 1
         # Должны быть и individual document.uploaded и document.rejected events.

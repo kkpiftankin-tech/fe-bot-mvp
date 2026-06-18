@@ -52,9 +52,7 @@ class TestRegisteredEvent:
     ) -> None:
         sid = _create_job(client, auth_headers)
         _upload(client, sid, auth_headers)
-        events = _events_of_type(
-            _bus(app_with_clean_state), "source.document.registered"
-        )
+        events = _events_of_type(_bus(app_with_clean_state), "source.document.registered")
         assert len(events) == 1
         assert events[0].setup_job_id == sid
 
@@ -75,9 +73,7 @@ class TestStatusChangedEvent:
             event_id="evt_change_1",
             reason="Parser started",
         )
-        events = _events_of_type(
-            _bus(app_with_clean_state), "source.document.status_changed"
-        )
+        events = _events_of_type(_bus(app_with_clean_state), "source.document.status_changed")
         assert len(events) == 1
         assert events[0].metrics["new_status"] == "parsing"
         assert events[0].metrics["old_status"] == "registered"
@@ -97,9 +93,7 @@ class TestMetadataUpdatedEvent:
             json={"tags": ["new"]},
             headers=auth_headers,
         )
-        events = _events_of_type(
-            _bus(app_with_clean_state), "source.document.metadata_updated"
-        )
+        events = _events_of_type(_bus(app_with_clean_state), "source.document.metadata_updated")
         assert len(events) == 1
         assert "tags" in events[0].metrics["fields_changed"]
 
@@ -121,9 +115,7 @@ class TestLineageUpdatedEvent:
             event_id="evt_link",
             created_by_service="gen",
         )
-        events = _events_of_type(
-            _bus(app_with_clean_state), "source.document.lineage_updated"
-        )
+        events = _events_of_type(_bus(app_with_clean_state), "source.document.lineage_updated")
         assert len(events) == 1
         assert events[0].metrics["target_type"] == "rag_card"
 
@@ -152,9 +144,7 @@ class TestLineageUpdatedEvent:
             event_id="evt_link",  # тот же event_id
             created_by_service="gen",
         )
-        events = _events_of_type(
-            _bus(app_with_clean_state), "source.document.lineage_updated"
-        )
+        events = _events_of_type(_bus(app_with_clean_state), "source.document.lineage_updated")
         assert len(events) == 1
 
 
@@ -176,9 +166,7 @@ class TestProcessingFailedEvent:
             level=ProcessingLogLevel.ERROR,
             error_code="PARSE_FAILED",
         )
-        events = _events_of_type(
-            _bus(app_with_clean_state), "source.document.processing_failed"
-        )
+        events = _events_of_type(_bus(app_with_clean_state), "source.document.processing_failed")
         assert len(events) == 1
         assert events[0].metrics["error_code"] == "PARSE_FAILED"
 
@@ -198,7 +186,5 @@ class TestProcessingFailedEvent:
             event_id="evt_info",
             level=ProcessingLogLevel.INFO,
         )
-        events = _events_of_type(
-            _bus(app_with_clean_state), "source.document.processing_failed"
-        )
+        events = _events_of_type(_bus(app_with_clean_state), "source.document.processing_failed")
         assert len(events) == 0

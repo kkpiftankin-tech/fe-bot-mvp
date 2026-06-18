@@ -61,19 +61,13 @@ class TestListSourcesHappyPath:
     ) -> None:
         sid = _create_job(client, auth_headers)
         _upload(client, sid, auth_headers)
-        body = client.get(
-            f"/api/v1/setup/{sid}/sources", headers=auth_headers
-        ).json()
+        body = client.get(f"/api/v1/setup/{sid}/sources", headers=auth_headers).json()
         assert len(body["items"][0]["checksum_short"]) == 12
 
-    def test_list_item_has_counters(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_list_item_has_counters(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         _upload(client, sid, auth_headers)
-        item = client.get(
-            f"/api/v1/setup/{sid}/sources", headers=auth_headers
-        ).json()["items"][0]
+        item = client.get(f"/api/v1/setup/{sid}/sources", headers=auth_headers).json()["items"][0]
         # Без downstream artifacts — все counters = 0.
         assert item["parsed_sections_count"] == 0
         assert item["rag_cards_count"] == 0
@@ -81,15 +75,11 @@ class TestListSourcesHappyPath:
 
 
 class TestListSourcesFilters:
-    def test_filter_by_status(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_filter_by_status(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         """T-S03-019: после upload status=registered (не uploaded)."""
         sid = _create_job(client, auth_headers)
         _upload(client, sid, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid}/sources?status=registered", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/sources?status=registered", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["pagination"]["total"] == 1
 
@@ -98,23 +88,15 @@ class TestListSourcesFilters:
     ) -> None:
         sid = _create_job(client, auth_headers)
         _upload(client, sid, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid}/sources?status=parsed", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/sources?status=parsed", headers=auth_headers)
         assert resp.json()["pagination"]["total"] == 0
 
-    def test_filter_by_owner(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_filter_by_owner(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         _upload(client, sid, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid}/sources?owner=u1", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/sources?owner=u1", headers=auth_headers)
         assert resp.json()["pagination"]["total"] == 1
-        resp = client.get(
-            f"/api/v1/setup/{sid}/sources?owner=other_user", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/sources?owner=other_user", headers=auth_headers)
         assert resp.json()["pagination"]["total"] == 0
 
     def test_include_removed_default_hidden(
@@ -122,13 +104,9 @@ class TestListSourcesFilters:
     ) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
-        client.delete(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
+        client.delete(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
         # Без include_removed.
-        body = client.get(
-            f"/api/v1/setup/{sid}/sources", headers=auth_headers
-        ).json()
+        body = client.get(f"/api/v1/setup/{sid}/sources", headers=auth_headers).json()
         assert body["pagination"]["total"] == 0
         # С include_removed.
         body = client.get(
@@ -139,9 +117,7 @@ class TestListSourcesFilters:
 
 
 class TestListSourcesPaginationAndSort:
-    def test_pagination_default(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_pagination_default(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         for i in range(5):
             _upload(client, sid, auth_headers, filename=f"f{i}.md", content=f"c{i}".encode())
@@ -151,9 +127,7 @@ class TestListSourcesPaginationAndSort:
         assert len(body["items"]) == 2
         assert body["pagination"]["total"] == 5
 
-    def test_pagination_second_page(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_pagination_second_page(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         for i in range(5):
             _upload(client, sid, auth_headers, filename=f"f{i}.md", content=f"c{i}".encode())
@@ -162,9 +136,7 @@ class TestListSourcesPaginationAndSort:
         ).json()
         assert len(body["items"]) == 2  # 5 total, page 2 of 3 = items 4-5
 
-    def test_sort_by_filename_asc(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_sort_by_filename_asc(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         _upload(client, sid, auth_headers, filename="z.md", content=b"z")
         _upload(client, sid, auth_headers, filename="a.md", content=b"a")
@@ -173,28 +145,18 @@ class TestListSourcesPaginationAndSort:
         ).json()
         assert [i["filename"] for i in body["items"]] == ["a.md", "z.md"]
 
-    def test_sort_invalid_field_400(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_sort_invalid_field_400(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid}/sources?sort=hacker_field", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/sources?sort=hacker_field", headers=auth_headers)
         assert resp.status_code == 400
 
 
 class TestListSourcesAccessControl:
-    def test_unknown_job_404(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
-        resp = client.get(
-            "/api/v1/setup/unknown_xxx/sources", headers=auth_headers
-        )
+    def test_unknown_job_404(self, client: TestClient, auth_headers: dict[str, str]) -> None:
+        resp = client.get("/api/v1/setup/unknown_xxx/sources", headers=auth_headers)
         assert resp.status_code == 404
 
-    def test_other_user_403(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_other_user_403(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         resp = client.get(
             f"/api/v1/setup/{sid}/sources",

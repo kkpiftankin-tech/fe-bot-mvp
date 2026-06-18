@@ -140,13 +140,9 @@ class TestRetryIdempotency:
 
 
 class TestRetryAccessControl:
-    def test_unknown_doc_404(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_unknown_doc_404(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
-        resp = client.post(
-            f"/api/v1/setup/{sid}/sources/src_nope/retry", headers=auth_headers
-        )
+        resp = client.post(f"/api/v1/setup/{sid}/sources/src_nope/retry", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_auditor_no_retry_permission(

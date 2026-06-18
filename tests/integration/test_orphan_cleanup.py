@@ -74,9 +74,7 @@ class TestCleanupDryRun:
             data=b"orphan-content",
         )
 
-        cleanup = app_with_clean_state.dependency_overrides[
-            get_orphan_cleanup_service
-        ]()
+        cleanup = app_with_clean_state.dependency_overrides[get_orphan_cleanup_service]()
         result = cleanup.cleanup(dry_run=True, setup_job_ids=[sid])
         assert len(result.orphan_paths) == 1
         assert result.deleted_paths == []
@@ -122,9 +120,7 @@ class TestCleanupRealRun:
             headers=auth_headers,
         )
 
-        cleanup = app_with_clean_state.dependency_overrides[
-            get_orphan_cleanup_service
-        ]()
+        cleanup = app_with_clean_state.dependency_overrides[get_orphan_cleanup_service]()
         result = cleanup.cleanup(dry_run=False, setup_job_ids=[sid])
         # 2 orphans удалено, 1 legitimate остался.
         assert len(result.deleted_paths) == 2

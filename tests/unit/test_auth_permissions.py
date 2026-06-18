@@ -46,6 +46,9 @@ class TestPermissionsMatrix:
                 Permission.KB_SOURCE_READ,
                 Permission.KB_SOURCE_LINEAGE_READ,
                 Permission.KB_SOURCE_LOG_READ,
+                # SETUP-04: auditor видит статус парсинга и секции (read-only).
+                Permission.KB_PARSE_STATUS_READ,
+                Permission.KB_SECTION_READ,
             }
         )
 

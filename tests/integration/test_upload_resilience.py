@@ -51,9 +51,7 @@ class TestStorageUnavailable:
 
         sid = _create_job(client, auth_headers)
 
-        storage = app_with_clean_state.dependency_overrides[
-            get_artifact_storage
-        ]()
+        storage = app_with_clean_state.dependency_overrides[get_artifact_storage]()
         with patch.object(
             storage,
             "upload",
@@ -177,9 +175,7 @@ class TestBatchAtLimits:
             )
             for i in range(MAX_BATCH_FILES_COUNT)
         ]
-        resp = client.post(
-            f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers
-        )
+        resp = client.post(f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers)
         assert resp.status_code == 201
         assert resp.json()["summary"]["files_uploaded"] == MAX_BATCH_FILES_COUNT
 
@@ -196,9 +192,7 @@ class TestBatchAtLimits:
             )
             for i in range(MAX_BATCH_FILES_COUNT + 1)
         ]
-        resp = client.post(
-            f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers
-        )
+        resp = client.post(f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers)
         assert resp.status_code == 413
 
 
@@ -231,9 +225,7 @@ class TestFilenameNormalization:
         )
         body = resp.json()
         if should_pass:
-            assert body["summary"]["files_uploaded"] == 1, (
-                f"filename {filename!r} expected to pass"
-            )
+            assert body["summary"]["files_uploaded"] == 1, f"filename {filename!r} expected to pass"
         else:
             assert body["summary"]["files_rejected"] == 1
 
@@ -255,9 +247,7 @@ class TestDeleteThenReupload:
         )
         doc_id = first.json()["uploaded"][0]["source_document_id"]
         # Удаляем
-        del_resp = client.delete(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
+        del_resp = client.delete(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
         assert del_resp.status_code == 200
 
         # Повтор upload с тем же request_id — cache отдаст старый response.
@@ -267,8 +257,6 @@ class TestDeleteThenReupload:
             headers=auth_headers,
         )
         # Cached — same source_document_id (но фактически он уже REMOVED).
-        assert (
-            second.json()["uploaded"][0]["source_document_id"] == doc_id
-        )
+        assert second.json()["uploaded"][0]["source_document_id"] == doc_id
         # Документально: идемпотентность работает по request_id, не отслеживает
         # внешние изменения registry. См. SETUP-02 §16.3.

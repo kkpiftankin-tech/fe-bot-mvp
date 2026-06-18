@@ -41,23 +41,15 @@ class TestDeleteHappyPath:
     ) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
-        resp = client.delete(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers
-        )
+        resp = client.delete(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["status"] == "removed"
 
-    def test_idempotent_delete(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_idempotent_delete(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
-        client.delete(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers
-        )
-        resp = client.delete(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers
-        )
+        client.delete(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers)
+        resp = client.delete(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["status"] == "removed"
 
@@ -72,12 +64,8 @@ class TestDeletePublishedProtection:
         """AC-29: published документ нельзя удалить без admin override."""
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
-        _force_status(
-            app_with_clean_state, doc_id, SourceDocumentStatus.PUBLISHED
-        )
-        resp = client.delete(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers
-        )
+        _force_status(app_with_clean_state, doc_id, SourceDocumentStatus.PUBLISHED)
+        resp = client.delete(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers)
         assert resp.status_code == 409
         detail = resp.json()["detail"]
         assert detail["error_code"] == "DOCUMENT_ALREADY_PUBLISHED"
@@ -92,38 +80,26 @@ class TestDeletePublishedProtection:
         """Admin (KB_PUBLISH) может override published-блокировку."""
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
-        _force_status(
-            app_with_clean_state, doc_id, SourceDocumentStatus.PUBLISHED
-        )
+        _force_status(app_with_clean_state, doc_id, SourceDocumentStatus.PUBLISHED)
         # Admin может удалить, но job не принимает upload (status может
         # измениться через pipeline). Здесь job всё ещё DRAFT, так что
         # remove_document пройдёт.
-        resp = client.delete(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=admin_headers
-        )
+        resp = client.delete(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=admin_headers)
         # Admin override проходит published check; дальше зависит от job-статуса.
         assert resp.status_code in (200, 409)
 
 
 class TestDeleteAccessControl:
-    def test_unknown_doc_404(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_unknown_doc_404(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
-        resp = client.delete(
-            f"/api/v1/setup/{sid}/sources/src_nope", headers=auth_headers
-        )
+        resp = client.delete(f"/api/v1/setup/{sid}/sources/src_nope", headers=auth_headers)
         assert resp.status_code == 404
 
-    def test_cross_job_doc_404(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_cross_job_doc_404(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid1 = _create_job(client, auth_headers)
         sid2 = _create_job(client, auth_headers)
         doc_id = _upload(client, sid1, auth_headers)
-        resp = client.delete(
-            f"/api/v1/setup/{sid2}/sources/{doc_id}", headers=auth_headers
-        )
+        resp = client.delete(f"/api/v1/setup/{sid2}/sources/{doc_id}", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_auditor_no_delete_permission(

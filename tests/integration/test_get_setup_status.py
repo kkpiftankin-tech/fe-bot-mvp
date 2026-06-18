@@ -19,9 +19,7 @@ def _create_job(client: TestClient, headers: dict[str, str]) -> str:
 
 
 class TestGetSetupJob:
-    def test_get_existing_job(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_get_existing_job(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         resp = client.get(f"/api/v1/setup/{sid}", headers=auth_headers)
         assert resp.status_code == 200

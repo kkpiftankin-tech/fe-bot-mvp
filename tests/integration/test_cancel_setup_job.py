@@ -18,9 +18,7 @@ def _create_job(client: TestClient, headers: dict[str, str]) -> str:
 
 
 class TestCancelSetupJob:
-    def test_cancel_draft_job(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_cancel_draft_job(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         resp = client.post(f"/api/v1/setup/{sid}/cancel", headers=auth_headers)
         assert resp.status_code == 200
@@ -29,9 +27,7 @@ class TestCancelSetupJob:
         assert body["finished_at"] is not None
         assert body["message"] == "Setup job cancelled"
 
-    def test_cancel_is_idempotent(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_cancel_is_idempotent(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         first = client.post(f"/api/v1/setup/{sid}/cancel", headers=auth_headers)
         assert first.status_code == 200

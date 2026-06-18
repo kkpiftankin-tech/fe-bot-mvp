@@ -54,9 +54,7 @@ def no_sleep():
 class TestEmbedChunk:
     @respx.mock
     def test_happy_path_returns_embedding(self, gateway: LLMGateway) -> None:
-        respx.post("http://localhost:11434/api/embeddings").respond(
-            json=_embed_response(768)
-        )
+        respx.post("http://localhost:11434/api/embeddings").respond(json=_embed_response(768))
         svc = EmbeddingService(llm_gateway=gateway)
         emb = svc.embed_chunk(_make_chunk())
         assert emb is not None
@@ -76,9 +74,7 @@ class TestEmbedChunk:
         assert emb is None
 
     @respx.mock
-    def test_retry_on_unavailable(
-        self, gateway: LLMGateway, no_sleep
-    ) -> None:
+    def test_retry_on_unavailable(self, gateway: LLMGateway, no_sleep) -> None:
         route = respx.post("http://localhost:11434/api/embeddings")
         route.side_effect = [
             httpx.ConnectError("down"),
@@ -90,9 +86,7 @@ class TestEmbedChunk:
         assert emb is not None  # succeeded on 3rd attempt
 
     @respx.mock
-    def test_retries_exhausted_returns_none(
-        self, gateway: LLMGateway, no_sleep
-    ) -> None:
+    def test_retries_exhausted_returns_none(self, gateway: LLMGateway, no_sleep) -> None:
         respx.post("http://localhost:11434/api/embeddings").mock(
             side_effect=httpx.ConnectError("permanent down")
         )
@@ -106,9 +100,7 @@ class TestEmbedChunk:
 class TestEmbedBatch:
     @respx.mock
     def test_batch_all_succeed(self, gateway: LLMGateway) -> None:
-        respx.post("http://localhost:11434/api/embeddings").respond(
-            json=_embed_response(768)
-        )
+        respx.post("http://localhost:11434/api/embeddings").respond(json=_embed_response(768))
         svc = EmbeddingService(llm_gateway=gateway)
         chunks = [_make_chunk(chunk_id=f"x.v1#summary#{i}") for i in range(4)]
         result = svc.embed_batch(chunks)
@@ -121,9 +113,7 @@ class TestEmbedBatch:
         assert result.latency_ms_total >= 0
 
     @respx.mock
-    def test_batch_partial_failure(
-        self, gateway: LLMGateway, no_sleep
-    ) -> None:
+    def test_batch_partial_failure(self, gateway: LLMGateway, no_sleep) -> None:
         # Делаем mix: success / fail / success.
         route = respx.post("http://localhost:11434/api/embeddings")
         route.side_effect = [
@@ -149,9 +139,7 @@ class TestModelConfig:
         route = respx.post("http://localhost:11434/api/embeddings").respond(
             json=_embed_response(768)
         )
-        svc = EmbeddingService(
-            llm_gateway=gateway, model="custom-embed-model", dimension=768
-        )
+        svc = EmbeddingService(llm_gateway=gateway, model="custom-embed-model", dimension=768)
         svc.embed_chunk(_make_chunk())
         # Проверяем что в request пошёл правильный model.
         assert route.calls.call_count == 1
@@ -160,12 +148,8 @@ class TestModelConfig:
 
     @respx.mock
     def test_index_version_attached_to_embedding(self, gateway: LLMGateway) -> None:
-        respx.post("http://localhost:11434/api/embeddings").respond(
-            json=_embed_response(768)
-        )
-        svc = EmbeddingService(
-            llm_gateway=gateway, index_version="idx_2026_06_10_v1"
-        )
+        respx.post("http://localhost:11434/api/embeddings").respond(json=_embed_response(768))
+        svc = EmbeddingService(llm_gateway=gateway, index_version="idx_2026_06_10_v1")
         emb = svc.embed_chunk(_make_chunk())
         assert emb is not None
         assert emb.index_version == "idx_2026_06_10_v1"

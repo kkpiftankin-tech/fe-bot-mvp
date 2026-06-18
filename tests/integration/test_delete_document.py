@@ -39,9 +39,7 @@ class TestDeleteHappyPath:
     ) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload_one(client, sid, auth_headers)
-        resp = client.delete(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
+        resp = client.delete(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "removed"
@@ -52,12 +50,8 @@ class TestDeleteHappyPath:
     ) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload_one(client, sid, auth_headers)
-        client.delete(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
-        resp = client.get(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
+        client.delete(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
+        resp = client.get(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
         # GET single document после delete возвращает 200 + status=removed
         # (audit trail сохранён).
         assert resp.status_code == 200
@@ -70,12 +64,8 @@ class TestDeleteIdempotent:
     ) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload_one(client, sid, auth_headers)
-        first = client.delete(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
-        second = client.delete(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
+        first = client.delete(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
+        second = client.delete(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
         assert first.status_code == 200
         assert second.status_code == 200
         assert second.json()["status"] == "removed"
@@ -88,9 +78,7 @@ class TestDeleteReleasesDedup:
         """После DELETE тот же файл (same checksum) можно зарегистрировать снова."""
         sid = _create_job(client, auth_headers)
         doc_id = _upload_one(client, sid, auth_headers, content=b"X")
-        client.delete(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
+        client.delete(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
         # Re-upload того же файла.
         resp = client.post(
             f"/api/v1/setup/{sid}/documents",
@@ -111,9 +99,7 @@ class TestDeleteErrors:
         self, client: TestClient, auth_headers: dict[str, str]
     ) -> None:
         sid = _create_job(client, auth_headers)
-        resp = client.delete(
-            f"/api/v1/setup/{sid}/documents/src_nope", headers=auth_headers
-        )
+        resp = client.delete(f"/api/v1/setup/{sid}/documents/src_nope", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_cross_job_document_returns_404(
@@ -123,9 +109,7 @@ class TestDeleteErrors:
         sid2 = _create_job(client, auth_headers)
         doc_id = _upload_one(client, sid1, auth_headers)
         # Пытаемся удалить из sid2.
-        resp = client.delete(
-            f"/api/v1/setup/{sid2}/documents/{doc_id}", headers=auth_headers
-        )
+        resp = client.delete(f"/api/v1/setup/{sid2}/documents/{doc_id}", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_auditor_lacks_delete_permission(
@@ -166,9 +150,7 @@ class TestDeleteAuditAndMetrics:
         )
         log = app_with_clean_state.dependency_overrides[get_audit_log]()
         events = log.list_for_job(sid)
-        removed = [
-            e for e in events if e.action == AuditAction.DOCUMENT_REMOVED
-        ]
+        removed = [e for e in events if e.action == AuditAction.DOCUMENT_REMOVED]
         assert len(removed) == 1
         assert removed[0].payload["reason"] == "mistake"
         assert removed[0].target_id == doc_id
@@ -183,14 +165,9 @@ class TestDeleteAuditAndMetrics:
 
         sid = _create_job(client, auth_headers)
         doc_id = _upload_one(client, sid, auth_headers)
-        client.delete(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
+        client.delete(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
         m = app_with_clean_state.dependency_overrides[get_metrics]()
-        assert (
-            m.counter_value("upload_files_total", labels={"outcome": "removed"})
-            == 1.0
-        )
+        assert m.counter_value("upload_files_total", labels={"outcome": "removed"}) == 1.0
 
     def test_idempotent_delete_does_not_double_audit(
         self,
@@ -202,16 +179,9 @@ class TestDeleteAuditAndMetrics:
 
         sid = _create_job(client, auth_headers)
         doc_id = _upload_one(client, sid, auth_headers)
-        client.delete(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
-        client.delete(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
+        client.delete(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
+        client.delete(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
         log = app_with_clean_state.dependency_overrides[get_audit_log]()
-        removed = [
-            e for e in log.list_for_job(sid)
-            if e.action == AuditAction.DOCUMENT_REMOVED
-        ]
+        removed = [e for e in log.list_for_job(sid) if e.action == AuditAction.DOCUMENT_REMOVED]
         # Один event на первый delete; второй (idempotent) не повторяет audit.
         assert len(removed) == 1

@@ -35,9 +35,7 @@ def _find_schema(spec: dict, name: str) -> dict:
 
 
 class TestUploadDocumentsResponseSchema:
-    def test_response_schema_present_in_openapi(
-        self, openapi_spec: dict
-    ) -> None:
+    def test_response_schema_present_in_openapi(self, openapi_spec: dict) -> None:
         schema = _find_schema(openapi_spec, "UploadDocumentsResponse")
         # 8 fields в v2.
         properties = schema["properties"]
@@ -89,13 +87,9 @@ class TestUploadFileErrorSchema:
     def test_error_schema_present(self, openapi_spec: dict) -> None:
         schema = _find_schema(openapi_spec, "UploadFileError")
         properties = schema["properties"]
-        assert {"filename", "error_code", "message", "details"}.issubset(
-            properties.keys()
-        )
+        assert {"filename", "error_code", "message", "details"}.issubset(properties.keys())
 
-    def test_error_code_is_enum_with_stable_values(
-        self, openapi_spec: dict
-    ) -> None:
+    def test_error_code_is_enum_with_stable_values(self, openapi_spec: dict) -> None:
         schema = _find_schema(openapi_spec, "UploadErrorCode")
         # Все enum-значения из контракта.
         enum_values = set(schema["enum"])
@@ -121,9 +115,7 @@ class TestUploadDocumentsEndpointDescription:
         # T-S01-013: duplicate_strategy.
         assert "duplicate_strategy" in params
 
-    def test_post_returns_upload_documents_response(
-        self, openapi_spec: dict
-    ) -> None:
+    def test_post_returns_upload_documents_response(self, openapi_spec: dict) -> None:
         paths = openapi_spec["paths"]
         endpoint = paths["/api/v1/setup/{setup_job_id}/documents"]["post"]
         # 201 Created — основной ответ.
@@ -145,9 +137,7 @@ class TestBackwardCompatibilityWithV1:
         # job_status (v1) тоже остался.
         assert "job_status" in properties
 
-    def test_new_v2_fields_are_optional(
-        self, openapi_spec: dict
-    ) -> None:
+    def test_new_v2_fields_are_optional(self, openapi_spec: dict) -> None:
         """summary, upload_batch_id, errors — расширения, optional с дефолтами."""
         schema = _find_schema(openapi_spec, "UploadDocumentsResponse")
         required = set(schema.get("required", []))

@@ -30,7 +30,10 @@ class TestRetryEndpointAbsent:
         """T-S02-016 deferred. Если этот тест упал — значит endpoint появился
         без обновления плана. Откатывайте либо обновляйте план."""
         paths = openapi_spec["paths"]
-        retry_paths = [p for p in paths if "/retry" in p and "/documents" in p]
+        # SETUP-02 endpoint имел плоский вид .../documents/retry без promejutochnogo
+        # /parse-jobs/ — это его и проверяем, чтобы не зацепить SETUP-04 endpoint
+        # POST /parse-jobs/{id}/documents/{src_id}/retry (T-S04-026).
+        retry_paths = [p for p in paths if p.endswith("/documents/retry")]
         assert retry_paths == [], (
             f"/documents/retry endpoint появился в OpenAPI: {retry_paths}. "
             "T-S02-016 deferred — обновите SETUP-02.tasks.md перед добавлением."

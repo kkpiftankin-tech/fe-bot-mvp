@@ -63,9 +63,7 @@ def registry() -> InMemoryRAGCardRegistry:
 
 
 class TestValidateForJobHappyPath:
-    def test_valid_cards_pass(
-        self, registry: InMemoryRAGCardRegistry
-    ) -> None:
+    def test_valid_cards_pass(self, registry: InMemoryRAGCardRegistry) -> None:
         c1, m1 = _make_valid_pair("a.v1")
         c2, m2 = _make_valid_pair("b.v1")
         registry.add(setup_job_id="j1", card=c1, metadata=m1)
@@ -85,9 +83,7 @@ class TestValidateForJobHappyPath:
 
 
 class TestValidateWithWarnings:
-    def test_warning_strict_policy_sends_to_review(
-        self, registry: InMemoryRAGCardRegistry
-    ) -> None:
+    def test_warning_strict_policy_sends_to_review(self, registry: InMemoryRAGCardRegistry) -> None:
         # source_document_ids=[] → triggers NO_SOURCE_DOCUMENTS warning
         c, m = _make_valid_pair("a.v1", source_docs=[])
         registry.add(setup_job_id="j", card=c, metadata=m)
@@ -115,9 +111,7 @@ class TestValidateWithWarnings:
 
 
 class TestValidateFailures:
-    def test_doc_id_duplicate_in_job_fails(
-        self, registry: InMemoryRAGCardRegistry
-    ) -> None:
+    def test_doc_id_duplicate_in_job_fails(self, registry: InMemoryRAGCardRegistry) -> None:
         # Делаем uniqueness нарушение: add двух карточек с разными
         # doc_id, потом руками поломаем — невозможно через add (raises).
         # Поэтому имитируем через validator-level: добавляем одну валидную,
@@ -133,9 +127,7 @@ class TestValidateFailures:
         empty_result = MetadataValidationService(registry=registry).validate_for_job("nope")
         assert empty_result.total == 0
 
-    def test_low_confidence_creates_warning(
-        self, registry: InMemoryRAGCardRegistry
-    ) -> None:
+    def test_low_confidence_creates_warning(self, registry: InMemoryRAGCardRegistry) -> None:
         c, m = _make_valid_pair(
             "a.v1",
             status=CardStatus.GENERATED,
@@ -150,9 +142,7 @@ class TestValidateFailures:
 
 
 class TestValidateOne:
-    def test_validate_one_updates_status(
-        self, registry: InMemoryRAGCardRegistry
-    ) -> None:
+    def test_validate_one_updates_status(self, registry: InMemoryRAGCardRegistry) -> None:
         c, m = _make_valid_pair("a.v1")
         registry.add(setup_job_id="j", card=c, metadata=m)
         svc = MetadataValidationService(registry=registry)
@@ -162,9 +152,7 @@ class TestValidateOne:
 
 
 class TestNoCardsInJob:
-    def test_no_cards_returns_zero(
-        self, registry: InMemoryRAGCardRegistry
-    ) -> None:
+    def test_no_cards_returns_zero(self, registry: InMemoryRAGCardRegistry) -> None:
         svc = MetadataValidationService(registry=registry)
         result = svc.validate_for_job("nonexistent_job")
         assert result.total == 0

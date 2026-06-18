@@ -92,9 +92,7 @@ class TestHappyPath:
         assert "sensor analytics" in result.metadata.retrieval_tags
 
     @respx.mock
-    def test_card_body_includes_title_summary_and_body(
-        self, gateway: LLMGateway
-    ) -> None:
+    def test_card_body_includes_title_summary_and_body(self, gateway: LLMGateway) -> None:
         respx.post("http://localhost:11434/api/generate").respond(
             json=_ollama_response(_valid_draft_json())
         )
@@ -108,9 +106,7 @@ class TestHappyPath:
 
 class TestLowConfidenceTriggersReview:
     @respx.mock
-    def test_low_numeric_confidence_review_required(
-        self, gateway: LLMGateway
-    ) -> None:
+    def test_low_numeric_confidence_review_required(self, gateway: LLMGateway) -> None:
         respx.post("http://localhost:11434/api/generate").respond(
             json=_ollama_response(
                 _valid_draft_json(confidence=HIGH_CONFIDENCE_THRESHOLD - 0.1, level="high")
@@ -147,12 +143,8 @@ class TestLLMFailureFallback:
         assert result.card.doc_type == DocType.ANALYTICS_CARD
 
     @respx.mock
-    def test_llm_invalid_after_retries_with_fallback(
-        self, gateway: LLMGateway
-    ) -> None:
-        respx.post("http://localhost:11434/api/generate").respond(
-            json=_ollama_response("garbage")
-        )
+    def test_llm_invalid_after_retries_with_fallback(self, gateway: LLMGateway) -> None:
+        respx.post("http://localhost:11434/api/generate").respond(json=_ollama_response("garbage"))
         gen = RAGCardGenerator(
             llm_gateway=gateway,
             fallback_generator=RAGCardFallbackGenerator(),
@@ -161,9 +153,7 @@ class TestLLMFailureFallback:
         assert result.used_fallback is True
 
     @respx.mock
-    def test_llm_unavailable_without_fallback_raises(
-        self, gateway: LLMGateway
-    ) -> None:
+    def test_llm_unavailable_without_fallback_raises(self, gateway: LLMGateway) -> None:
         respx.post("http://localhost:11434/api/generate").mock(
             side_effect=httpx.ConnectError("down")
         )
@@ -172,9 +162,7 @@ class TestLLMFailureFallback:
             gen.generate(_make_section())
 
     @respx.mock
-    def test_invalid_output_without_fallback_raises(
-        self, gateway: LLMGateway
-    ) -> None:
+    def test_invalid_output_without_fallback_raises(self, gateway: LLMGateway) -> None:
         respx.post("http://localhost:11434/api/generate").respond(
             json=_ollama_response("not json at all")
         )

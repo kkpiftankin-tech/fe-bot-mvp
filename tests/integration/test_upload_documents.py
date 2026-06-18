@@ -19,9 +19,7 @@ def _create_job(client: TestClient, headers: dict[str, str]) -> str:
 
 
 class TestUploadDocuments:
-    def test_upload_single_file_201(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_upload_single_file_201(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         resp = client.post(
             f"/api/v1/setup/{sid}/documents",
@@ -55,9 +53,7 @@ class TestUploadDocuments:
         assert status_resp.json()["status"] == "files_uploaded"
         assert status_resp.json()["source_documents_count"] == 1
 
-    def test_upload_multiple_files(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_upload_multiple_files(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         resp = client.post(
             f"/api/v1/setup/{sid}/documents",
@@ -76,9 +72,7 @@ class TestUploadDocuments:
     ) -> None:
         sid = _create_job(client, auth_headers)
         files = {"files": ("same.md", b"identical", "text/markdown")}
-        first = client.post(
-            f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers
-        )
+        first = client.post(f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers)
         assert len(first.json()["uploaded"]) == 1
 
         second = client.post(
@@ -158,21 +152,15 @@ class TestUploadDocuments:
         )
         assert resp.status_code == 401
 
-    def test_upload_no_files_400(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_upload_no_files_400(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
-        resp = client.post(
-            f"/api/v1/setup/{sid}/documents", headers=auth_headers
-        )
+        resp = client.post(f"/api/v1/setup/{sid}/documents", headers=auth_headers)
         # FastAPI multipart parser возвращает 422 если нет файлов в сигнатуре `...`
         assert resp.status_code in {400, 422}
 
 
 class TestListDocuments:
-    def test_list_empty(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_list_empty(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         resp = client.get(f"/api/v1/setup/{sid}/documents", headers=auth_headers)
         assert resp.status_code == 200
@@ -180,9 +168,7 @@ class TestListDocuments:
         assert body["count"] == 0
         assert body["documents"] == []
 
-    def test_list_after_upload(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_list_after_upload(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         client.post(
             f"/api/v1/setup/{sid}/documents",
@@ -200,15 +186,11 @@ class TestListDocuments:
         # Регулярному пользователю storage_path скрыт
         assert all(d["storage_path"] is None for d in body["documents"])
 
-    def test_list_unknown_job_404(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_list_unknown_job_404(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         resp = client.get("/api/v1/setup/nope/documents", headers=auth_headers)
         assert resp.status_code == 404
 
-    def test_list_other_user_403(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_list_other_user_403(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         other = {"X-User-Id": "u2", "X-Roles": "user"}
         resp = client.get(f"/api/v1/setup/{sid}/documents", headers=other)

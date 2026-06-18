@@ -76,8 +76,6 @@ class TestCreateSetupJob:
     def test_create_admin_can_also_create(
         self, client: TestClient, admin_headers: dict[str, str]
     ) -> None:
-        response = client.post(
-            "/api/v1/setup/jobs", json=_payload(), headers=admin_headers
-        )
+        response = client.post("/api/v1/setup/jobs", json=_payload(), headers=admin_headers)
         assert response.status_code == 201
         assert response.json()["user_id"] == "admin1"

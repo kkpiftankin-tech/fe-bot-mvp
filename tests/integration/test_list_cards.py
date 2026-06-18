@@ -54,9 +54,7 @@ class TestListCards:
             assert card["body_markdown"] is not None
             assert card["body_preview"] is None
 
-    def test_filter_by_status(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_filter_by_status(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job_and_run(client, auth_headers)
         # fallback-only generator → все карточки в review_required после
         # validation (low confidence).
@@ -68,9 +66,7 @@ class TestListCards:
         assert body["count"] >= 1
         assert all(c["status"] == "review_required" for c in body["cards"])
 
-    def test_filter_by_doc_type(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_filter_by_doc_type(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job_and_run(client, auth_headers)
         # secondary section с "Validation" → validation_rule_card.
         resp = client.get(
@@ -96,9 +92,7 @@ class TestListCards:
         )
         assert resp.status_code == 403
 
-    def test_auditor_cannot_list(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_auditor_cannot_list(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job_and_run(client, auth_headers)
         resp = client.get(
             f"/api/v1/setup/{sid}/rag-cards",

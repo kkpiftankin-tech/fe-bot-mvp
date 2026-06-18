@@ -37,13 +37,9 @@ class TestUploadCounters:
             headers=auth_headers,
         )
         m = _metrics(app_with_clean_state)
-        assert (
-            m.counter_value("upload_files_total", labels={"outcome": "uploaded"})
-            == 1.0
-        )
-        assert (
-            m.counter_value("upload_bytes_total", labels={"outcome": "uploaded"})
-            == float(len(b"content"))
+        assert m.counter_value("upload_files_total", labels={"outcome": "uploaded"}) == 1.0
+        assert m.counter_value("upload_bytes_total", labels={"outcome": "uploaded"}) == float(
+            len(b"content")
         )
 
     def test_rejected_file_increments_rejected_counter(
@@ -59,10 +55,7 @@ class TestUploadCounters:
             headers=auth_headers,
         )
         m = _metrics(app_with_clean_state)
-        assert (
-            m.counter_value("upload_files_total", labels={"outcome": "rejected"})
-            == 1.0
-        )
+        assert m.counter_value("upload_files_total", labels={"outcome": "rejected"}) == 1.0
         assert (
             m.counter_value(
                 "upload_errors_total",
@@ -89,10 +82,7 @@ class TestUploadCounters:
             headers=auth_headers,
         )
         m = _metrics(app_with_clean_state)
-        assert (
-            m.counter_value("upload_files_total", labels={"outcome": "duplicate"})
-            == 1.0
-        )
+        assert m.counter_value("upload_files_total", labels={"outcome": "duplicate"}) == 1.0
 
     def test_batch_increments_requests_counter(
         self,
@@ -107,12 +97,7 @@ class TestUploadCounters:
             headers=auth_headers,
         )
         m = _metrics(app_with_clean_state)
-        assert (
-            m.counter_value(
-                "upload_requests_total", labels={"outcome": "completed"}
-            )
-            == 1.0
-        )
+        assert m.counter_value("upload_requests_total", labels={"outcome": "completed"}) == 1.0
 
 
 class TestUploadHistograms:
@@ -146,9 +131,9 @@ class TestUploadHistograms:
         )
         m = _metrics(app_with_clean_state)
         for phase in ("validation", "checksum", "storage", "registry", "total"):
-            assert m.histogram_count(
-                "upload_latency_seconds", labels={"phase": phase}
-            ) == 1, f"phase {phase!r} histogram not recorded"
+            assert m.histogram_count("upload_latency_seconds", labels={"phase": phase}) == 1, (
+                f"phase {phase!r} histogram not recorded"
+            )
 
 
 class TestPrometheusExposition:

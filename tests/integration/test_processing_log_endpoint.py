@@ -146,9 +146,7 @@ class TestProcessingLogEndpoint:
         assert body["pagination"]["total"] == 1
         assert body["items"][0]["message"] == "boom"
 
-    def test_unknown_doc_404(
-        self, client: TestClient, expert_headers: dict[str, str]
-    ) -> None:
+    def test_unknown_doc_404(self, client: TestClient, expert_headers: dict[str, str]) -> None:
         sid = _create_job(client, expert_headers)
         resp = client.get(
             f"/api/v1/setup/{sid}/sources/src_nope/processing-log",
@@ -240,9 +238,7 @@ class TestLineageEndpoint:
         assert len(body["relations"]) == 1
         assert body["relations"][0]["target_id"] == "card_001"
 
-    def test_unknown_doc_404(
-        self, client: TestClient, expert_headers: dict[str, str]
-    ) -> None:
+    def test_unknown_doc_404(self, client: TestClient, expert_headers: dict[str, str]) -> None:
         sid = _create_job(client, expert_headers)
         resp = client.get(
             f"/api/v1/setup/{sid}/sources/src_nope/lineage",

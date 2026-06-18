@@ -30,14 +30,10 @@ def _upload(
 
 
 class TestGetDetailsHappyPath:
-    def test_returns_full_details(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_returns_full_details(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers)
         assert resp.status_code == 200
         body = resp.json()
         assert body["source_document_id"] == doc_id
@@ -47,14 +43,10 @@ class TestGetDetailsHappyPath:
         assert body["status"] == "registered"
         assert len(body["checksum"]) == 64
 
-    def test_includes_counters(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_includes_counters(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
-        body = client.get(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers
-        ).json()
+        body = client.get(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers).json()
         assert body["counters"]["rag_cards_count"] == 0
         assert body["counters"]["parsed_sections_count"] == 0
 
@@ -63,9 +55,7 @@ class TestGetDetailsHappyPath:
     ) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
-        body = client.get(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers
-        ).json()
+        body = client.get(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers).json()
         assert body["user_metadata"] == {}
 
 
@@ -75,9 +65,7 @@ class TestStoragePathMasking:
     ) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
-        body = client.get(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers
-        ).json()
+        body = client.get(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers).json()
         assert body["storage_path"] is None
 
     def test_storage_path_visible_for_admin(
@@ -88,36 +76,24 @@ class TestStoragePathMasking:
     ) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
-        body = client.get(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=admin_headers
-        ).json()
+        body = client.get(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=admin_headers).json()
         assert body["storage_path"] is not None
 
 
 class TestErrorPaths:
-    def test_unknown_doc_404(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_unknown_doc_404(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid}/sources/src_nope", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/sources/src_nope", headers=auth_headers)
         assert resp.status_code == 404
 
-    def test_cross_job_doc_404(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_cross_job_doc_404(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid1 = _create_job(client, auth_headers)
         sid2 = _create_job(client, auth_headers)
         doc_id = _upload(client, sid1, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid2}/sources/{doc_id}", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid2}/sources/{doc_id}", headers=auth_headers)
         assert resp.status_code == 404
 
-    def test_other_user_403(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_other_user_403(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
         resp = client.get(
@@ -131,11 +107,7 @@ class TestErrorPaths:
     ) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
-        client.delete(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
-        resp = client.get(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers
-        )
+        client.delete(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
+        resp = client.get(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["status"] == "removed"

@@ -128,9 +128,7 @@ class TestInvalidStatusTransitions:
     ) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
-        client.delete(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers
-        )
+        client.delete(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers)
         # Now REMOVED — terminal.
         with pytest.raises(InvalidStatusTransitionError):
             _lifecycle(app_with_clean_state).update_status(
@@ -213,9 +211,7 @@ class TestIdempotencyUnderRetry:
             )
         bus = app_with_clean_state.dependency_overrides[get_event_bus]()
         link_events = [
-            e
-            for e in bus.history()
-            if e.event_type == "source.document.lineage_updated"
+            e for e in bus.history() if e.event_type == "source.document.lineage_updated"
         ]
         assert len(link_events) == 1
 
@@ -234,9 +230,7 @@ class TestCrossJobProtection:
         sid1 = _create_job(client, auth_headers)
         sid2 = _create_job(client, auth_headers)
         doc_id = _upload(client, sid1, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid2}/sources/{doc_id}", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid2}/sources/{doc_id}", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_patch_metadata_other_job_returns_404(
@@ -268,11 +262,7 @@ class TestXSSSanitization:
         doc_id = _upload(client, sid, auth_headers)
         resp = client.patch(
             f"/api/v1/setup/{sid}/sources/{doc_id}/metadata",
-            json={
-                "description": (
-                    '<img src=x onerror=alert(1)><script>console.log(1)</script>'
-                )
-            },
+            json={"description": ("<img src=x onerror=alert(1)><script>console.log(1)</script>")},
             headers=auth_headers,
         )
         assert resp.status_code == 200
@@ -281,9 +271,7 @@ class TestXSSSanitization:
         assert "<img" not in desc
         assert "&lt;" in desc
 
-    def test_xss_in_tag_is_escaped(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_xss_in_tag_is_escaped(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
         resp = client.patch(
@@ -365,17 +353,13 @@ class TestPublishedDeleteBlocked:
         # Force to PUBLISHED.
         from fe_bot.api.dependencies import get_source_registry
 
-        registry = app_with_clean_state.dependency_overrides[
-            get_source_registry
-        ]()
+        registry = app_with_clean_state.dependency_overrides[get_source_registry]()
         doc = registry.get(doc_id)
         registry._by_id[doc_id] = doc.model_copy(  # type: ignore[attr-defined]
             update={"status": SourceDocumentStatus.PUBLISHED}
         )
 
-        resp = client.delete(
-            f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers
-        )
+        resp = client.delete(f"/api/v1/setup/{sid}/sources/{doc_id}", headers=auth_headers)
         assert resp.status_code == 409
         assert resp.json()["detail"]["error_code"] == "DOCUMENT_ALREADY_PUBLISHED"
 
@@ -454,9 +438,7 @@ class TestRetryIdempotency:
             )
         log = app_with_clean_state.dependency_overrides[get_audit_log]()
         retry_events = [
-            e
-            for e in log.list_for_job(sid)
-            if e.action == AuditAction.PROCESSING_RETRY_TRIGGERED
+            e for e in log.list_for_job(sid) if e.action == AuditAction.PROCESSING_RETRY_TRIGGERED
         ]
         # Один audit event (через update_status idempotency).
         assert len(retry_events) <= 1
@@ -486,12 +468,8 @@ class TestStorageFailureDoesNotCorruptHistory:
         from fe_bot.storage.artifact_service import StorageUnavailableError
 
         sid = _create_job(client, auth_headers)
-        storage = app_with_clean_state.dependency_overrides[
-            get_artifact_storage
-        ]()
-        with patch.object(
-            storage, "upload", side_effect=StorageUnavailableError("S3 down")
-        ):
+        storage = app_with_clean_state.dependency_overrides[get_artifact_storage]()
+        with patch.object(storage, "upload", side_effect=StorageUnavailableError("S3 down")):
             resp = client.post(
                 f"/api/v1/setup/{sid}/documents",
                 files={"files": ("fail.md", b"x", "text/markdown")},
@@ -499,9 +477,7 @@ class TestStorageFailureDoesNotCorruptHistory:
             )
             assert resp.status_code >= 500
 
-        history = app_with_clean_state.dependency_overrides[
-            get_status_history_repo
-        ]()
+        history = app_with_clean_state.dependency_overrides[get_status_history_repo]()
         # Никаких history записей не написано (registry.add не выполнился).
         # Документа в registry нет, так что history тоже пуст.
         assert history._by_document == {}  # type: ignore[attr-defined]

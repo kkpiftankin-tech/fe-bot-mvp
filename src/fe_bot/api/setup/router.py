@@ -148,6 +148,7 @@ def _to_response(job: RAGSetupJob, message: str | None = None) -> SetupJobRespon
 
 # ---------- Реализованные endpoints (S1) ----------
 
+
 @router.post(
     "/jobs",
     response_model=SetupJobResponse,
@@ -179,9 +180,7 @@ def get_setup_job(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     if job.user_id != principal.user_id and not any(
         principal.has_permission(p) for p in (Permission.KB_PUBLISH,)
     ):
@@ -205,9 +204,7 @@ def get_setup_progress(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     if job.user_id != principal.user_id and not principal.has_permission(Permission.KB_PUBLISH):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -236,9 +233,7 @@ def cancel_setup_job(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     if job.user_id != principal.user_id and not principal.has_permission(Permission.KB_PUBLISH):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -247,9 +242,7 @@ def cancel_setup_job(
     try:
         cancelled = orchestrator.cancel_job(setup_job_id)
     except InvalidTransitionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return _to_response(cancelled, message="Setup job cancelled")
 
 
@@ -264,17 +257,13 @@ _NOT_IMPLEMENTED = HTTPException(
 # Permissions, дающие cross-job доступ (через привилегированные role).
 # KB_REPORT_READ не входит: его имеет каждая роль (включая USER), но cross-job
 # доступ должен быть привилегией auditor/admin, а не общедоступной.
-_CROSS_JOB_PERMISSIONS = frozenset(
-    {Permission.KB_PUBLISH, Permission.KB_CARD_REVIEW}
-)
+_CROSS_JOB_PERMISSIONS = frozenset({Permission.KB_PUBLISH, Permission.KB_CARD_REVIEW})
 
 # Cross-job для report endpoint: дополнительно auditor (read-only audit).
 _REPORT_CROSS_JOB_ROLES = frozenset({_Role.AUDITOR, _Role.ADMIN})
 
 
-def _check_job_access(
-    job: RAGSetupJob, principal: Principal, action: str = "access"
-) -> None:
+def _check_job_access(job: RAGSetupJob, principal: Principal, action: str = "access") -> None:
     """Owner может всё со своим job. Cross-job — нужна KB_PUBLISH или KB_CARD_REVIEW.
 
     KB_CARD_REVIEW даёт cross-job доступ потому что reviewer'у нужно видеть
@@ -341,9 +330,7 @@ async def upload_documents(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal, action="upload to")
 
     # T-S02-007: idempotency check. Если совпадает — возвращаем кешированный.
@@ -354,9 +341,7 @@ async def upload_documents(
         if cached is not None:
             return cached
         # Fallback: возможно cache очищен, но batch уже существует в registry.
-        existing_batch = batch_registry.get_by_request_id(
-            setup_job_id, upload_request_id
-        )
+        existing_batch = batch_registry.get_by_request_id(setup_job_id, upload_request_id)
         if existing_batch is not None:
             # Конфликт: тот же request_id уже использован, но результат
             # вне TTL cache. Возвращаем 409, чтобы клиент знал что повтор
@@ -372,9 +357,7 @@ async def upload_documents(
     # ----- Batch-level pre-checks (T-S02-005/006) -----
     try:
         total_size = sum((f.size or 0) for f in files)
-        validate_batch_limits(
-            files_count=len(files), total_size_bytes=total_size
-        )
+        validate_batch_limits(files_count=len(files), total_size_bytes=total_size)
         check_filename_uniqueness([f.filename or "" for f in files])
     except UploadValidationError as exc:
         raise HTTPException(
@@ -437,9 +420,7 @@ async def upload_documents(
             with contextlib.suppress(Exception):
                 fail_batch.transition_to(UploadBatchStatus.FAILED)
                 batch_registry.update(fail_batch)
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-            ) from exc
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
         except StorageError as exc:
             # T-S02-024: Object Storage недоступен — batch FAILED, 500 клиенту.
             fail_batch = batch.model_copy(
@@ -553,9 +534,7 @@ def list_documents(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal)
 
     include_paths = principal.has_permission(Permission.KB_PUBLISH)
@@ -590,17 +569,13 @@ def get_document_metadata(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal)
 
     try:
         document = registry.get(source_document_id)
     except SourceDocumentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     # Cross-job protection: документ должен принадлежать этому setup_job_id.
     if document.setup_job_id != setup_job_id:
         raise HTTPException(
@@ -634,9 +609,7 @@ def delete_document(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal, action="delete document from")
 
     try:
@@ -647,13 +620,9 @@ def delete_document(
             reason=reason,
         )
     except SourceDocumentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except JobNotAcceptingUploadsError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     return RemoveDocumentResponse(
         setup_job_id=setup_job_id,
@@ -677,9 +646,7 @@ def run_pipeline(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal, action="run")
 
     if job.status == SetupJobStatus.DRAFT:
@@ -691,22 +658,18 @@ def run_pipeline(
     try:
         result = pipeline.run(setup_job_id)
     except PipelineError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     message = None
     if result.final_status == SetupJobStatus.FAILED:
         message = "Pipeline failed — see errors[] for details"
     elif result.cards_review_required:
         message = (
-            f"Pipeline completed; {result.cards_review_required} card(s) "
-            "require human review (S4)"
+            f"Pipeline completed; {result.cards_review_required} card(s) require human review (S4)"
         )
     elif result.final_status == SetupJobStatus.INDEXING:
         message = (
-            f"Pipeline completed; indexed {result.chunks_indexed}/"
-            f"{result.chunks_total} chunks"
+            f"Pipeline completed; indexed {result.chunks_indexed}/{result.chunks_total} chunks"
         )
     else:
         message = "Pipeline completed successfully"
@@ -769,9 +732,7 @@ def list_rag_cards(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal)
 
     records = card_registry.list_for_job(setup_job_id)
@@ -781,11 +742,7 @@ def list_rag_cards(
     if doc_type:
         records = [r for r in records if r.card.doc_type.value == doc_type]
     if confidence_level:
-        records = [
-            r
-            for r in records
-            if (r.card.confidence_level or "") == confidence_level
-        ]
+        records = [r for r in records if (r.card.confidence_level or "") == confidence_level]
 
     include_body = include == "body"
 
@@ -855,18 +812,14 @@ def review_rag_card(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal, action="review")
 
     # Карточка должна принадлежать этому setup_job_id.
     try:
         existing = card_registry.get(doc_id)
     except CardNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     if existing.setup_job_id != setup_job_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -907,9 +860,7 @@ def review_rag_card(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
     except InvalidReviewStateError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     new_doc_id = updated.card.doc_id if decision == ReviewDecision.EDIT else None
     return ReviewRAGCardResponse(
@@ -944,9 +895,7 @@ def reindex_cards(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal, action="reindex")
 
     # Собираем approved + indexed карточки.
@@ -1019,9 +968,7 @@ def run_retrieval_tests(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal, action="retrieval-tests")
 
     golden = [
@@ -1052,9 +999,7 @@ def run_retrieval_tests(
             orchestrator.advance(
                 setup_job_id,
                 SetupJobStatus.RETRIEVAL_TESTING,
-                message=(
-                    f"Retrieval tests: recall@{report.top_k}={report.mean_recall_at_k:.2f}"
-                ),
+                message=(f"Retrieval tests: recall@{report.top_k}={report.mean_recall_at_k:.2f}"),
                 metrics={
                     "mean_recall_at_k": report.mean_recall_at_k,
                     "mean_precision_at_k": report.mean_precision_at_k,
@@ -1113,9 +1058,7 @@ def publish_kb(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal, action="publish")
 
     # Gate: должен быть пройден retrieval-eval (если предоставлен).
@@ -1147,9 +1090,7 @@ def publish_kb(
     last_index_version = job.knowledge_base_version or "idx_unknown"
     # Считаем chunks через VectorIndexClient напрямую.
     index_client = vector_indexer._index_client
-    chunk_count = sum(
-        index_client.count(c) for c in index_client.list_collections()
-    )
+    chunk_count = sum(index_client.count(c) for c in index_client.list_collections())
 
     # Lifecycle: DRAFT → TESTING → READY → ACTIVE.
     kb = publish_service.create_draft(
@@ -1166,13 +1107,9 @@ def publish_kb(
         ),
     )
     try:
-        active = publish_service.activate(
-            kb.knowledge_base_version, published_by=principal.user_id
-        )
+        active = publish_service.activate(kb.knowledge_base_version, published_by=principal.user_id)
     except PublishNotReadyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     # Транзитим job: → publishing → ready
     try:
@@ -1238,9 +1175,7 @@ def get_report(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal, action="report")
 
     documents = source_registry.list_for_job(setup_job_id)
@@ -1276,16 +1211,12 @@ def get_report(
         cards_approved=cards_approved,
         cards_review_required=by_status.get("review_required", 0),
         cards_deprecated=by_status.get("deprecated", 0),
-        knowledge_base_version=(
-            active_kb.knowledge_base_version if active_kb else None
-        ),
+        knowledge_base_version=(active_kb.knowledge_base_version if active_kb else None),
         knowledge_base_status=active_kb.status.value if active_kb else None,
         knowledge_base_is_active=bool(active_kb and active_kb.is_active),
         chunks_indexed=active_kb.chunk_count if active_kb else 0,
         index_version=active_kb.index_version if active_kb else None,
-        eval_passed=(
-            (active_kb.status == KBStatus.ACTIVE) if active_kb else None
-        ),
+        eval_passed=((active_kb.status == KBStatus.ACTIVE) if active_kb else None),
         started_at=job.started_at,
         finished_at=job.finished_at,
     )

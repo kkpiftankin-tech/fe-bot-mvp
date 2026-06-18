@@ -25,9 +25,7 @@ def _upload(client: TestClient, sid: str, headers: dict[str, str]) -> str:
 
 
 class TestPatchMetadataHappyPath:
-    def test_patch_tags_succeeds(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_patch_tags_succeeds(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
         resp = client.patch(
@@ -39,9 +37,7 @@ class TestPatchMetadataHappyPath:
         body = resp.json()
         assert body["user_metadata"]["tags"] == ["naval", "schema"]
 
-    def test_patch_description(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_patch_description(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
         resp = client.patch(
@@ -100,9 +96,7 @@ class TestPatchProtectedFields:
         assert "<script>" not in desc
         assert "&lt;" in desc
 
-    def test_tag_too_long_400(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_tag_too_long_400(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         """Tag validation в lifecycle (через SourceDocumentUserMetadata) → 400."""
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
@@ -116,9 +110,7 @@ class TestPatchProtectedFields:
 
 
 class TestPatchAccessControl:
-    def test_unknown_doc_404(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_unknown_doc_404(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         resp = client.patch(
             f"/api/v1/setup/{sid}/sources/src_nope/metadata",
@@ -127,9 +119,7 @@ class TestPatchAccessControl:
         )
         assert resp.status_code == 404
 
-    def test_cross_job_doc_404(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_cross_job_doc_404(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid1 = _create_job(client, auth_headers)
         sid2 = _create_job(client, auth_headers)
         doc_id = _upload(client, sid1, auth_headers)

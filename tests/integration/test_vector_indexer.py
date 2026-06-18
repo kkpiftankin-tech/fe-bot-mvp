@@ -96,12 +96,8 @@ def _make_indexer(
 
 class TestHappyPath:
     @respx.mock
-    def test_indexes_single_card_to_correct_collection(
-        self, gateway: LLMGateway
-    ) -> None:
-        respx.post("http://localhost:11434/api/embeddings").respond(
-            json=_embed_response(768)
-        )
+    def test_indexes_single_card_to_correct_collection(self, gateway: LLMGateway) -> None:
+        respx.post("http://localhost:11434/api/embeddings").respond(json=_embed_response(768))
         client = InMemoryVectorIndexClient()
         svc = _make_indexer(gateway, client)
         card, meta = _make_pair()
@@ -118,16 +114,17 @@ class TestHappyPath:
         collection = collection_for_doc_type(DocType.ANALYTICS_CARD.value)
         assert client.count(collection) == 3
         # Точки лежат с правильными chunk_id.
-        assert client.get(
-            collection=collection,
-            chunk_id="analytics_card.sensor.v1#summary#0",
-        ) is not None
+        assert (
+            client.get(
+                collection=collection,
+                chunk_id="analytics_card.sensor.v1#summary#0",
+            )
+            is not None
+        )
 
     @respx.mock
     def test_multiple_cards_routed_by_doc_type(self, gateway: LLMGateway) -> None:
-        respx.post("http://localhost:11434/api/embeddings").respond(
-            json=_embed_response(768)
-        )
+        respx.post("http://localhost:11434/api/embeddings").respond(json=_embed_response(768))
         client = InMemoryVectorIndexClient()
         svc = _make_indexer(gateway, client)
         pairs = [
@@ -153,12 +150,8 @@ class TestHappyPath:
         assert result.vector_index.status == VectorIndexStatus.READY
 
     @respx.mock
-    def test_index_version_propagated_to_embeddings(
-        self, gateway: LLMGateway
-    ) -> None:
-        respx.post("http://localhost:11434/api/embeddings").respond(
-            json=_embed_response(768)
-        )
+    def test_index_version_propagated_to_embeddings(self, gateway: LLMGateway) -> None:
+        respx.post("http://localhost:11434/api/embeddings").respond(json=_embed_response(768))
         svc = _make_indexer(gateway)
         card, meta = _make_pair()
         result = svc.index_cards([(card, meta)], index_version="idx_custom")
@@ -168,12 +161,8 @@ class TestHappyPath:
 
 class TestIdempotency:
     @respx.mock
-    def test_reindex_same_cards_replaces_points(
-        self, gateway: LLMGateway
-    ) -> None:
-        respx.post("http://localhost:11434/api/embeddings").respond(
-            json=_embed_response(768)
-        )
+    def test_reindex_same_cards_replaces_points(self, gateway: LLMGateway) -> None:
+        respx.post("http://localhost:11434/api/embeddings").respond(json=_embed_response(768))
         client = InMemoryVectorIndexClient()
         svc = _make_indexer(gateway, client)
         card, meta = _make_pair()

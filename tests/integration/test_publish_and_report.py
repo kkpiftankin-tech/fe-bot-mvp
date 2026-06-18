@@ -33,9 +33,7 @@ def _auditor_headers() -> dict[str, str]:
     return {"X-User-Id": "auditor", "X-Roles": "auditor"}
 
 
-def _add_approved_card(
-    registry: InMemoryRAGCardRegistry, setup_job_id: str, doc_id: str
-) -> None:
+def _add_approved_card(registry: InMemoryRAGCardRegistry, setup_job_id: str, doc_id: str) -> None:
     card = RAGCard(
         doc_id=doc_id,
         doc_type=DocType.ANALYTICS_CARD,
@@ -178,9 +176,7 @@ class TestPublishErrors:
         )
         assert resp.status_code == 403
 
-    def test_publish_unknown_job_404(
-        self, client: TestClient
-    ) -> None:
+    def test_publish_unknown_job_404(self, client: TestClient) -> None:
         resp = client.post(
             "/api/v1/setup/unknown/publish",
             json={},
@@ -190,14 +186,10 @@ class TestPublishErrors:
 
 
 class TestReport:
-    def test_report_empty_job(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_report_empty_job(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         # Auditor has KB_REPORT_READ permission
-        resp = client.get(
-            f"/api/v1/setup/{sid}/report", headers=_auditor_headers()
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/report", headers=_auditor_headers())
         assert resp.status_code == 200
         body = resp.json()
         assert body["setup_job_id"] == sid
@@ -239,9 +231,7 @@ class TestReport:
             headers=_admin_headers(),
         )
 
-        report = client.get(
-            f"/api/v1/setup/{sid}/report", headers=_auditor_headers()
-        ).json()
+        report = client.get(f"/api/v1/setup/{sid}/report", headers=_auditor_headers()).json()
         assert report["cards_count"] == 1
         # После publish карточка переведена в PUBLISHED — статус не "approved",
         # но cards_approved считает APPROVED+CHUNKED+EMBEDDED+INDEXED+PUBLISHED.
@@ -252,7 +242,5 @@ class TestReport:
         assert report["eval_passed"] is True
 
     def test_report_unknown_job_404(self, client: TestClient) -> None:
-        resp = client.get(
-            "/api/v1/setup/unknown/report", headers=_auditor_headers()
-        )
+        resp = client.get("/api/v1/setup/unknown/report", headers=_auditor_headers())
         assert resp.status_code == 404

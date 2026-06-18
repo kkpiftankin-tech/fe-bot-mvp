@@ -42,9 +42,7 @@ class TestRequestIdMiddleware:
         assert "X-Request-Id" in resp.headers
         assert resp.headers["X-Request-Id"].startswith("req_")
 
-    def test_preserves_existing_request_id(
-        self, client: TestClient
-    ) -> None:
+    def test_preserves_existing_request_id(self, client: TestClient) -> None:
         resp = client.get("/healthz", headers={"X-Request-Id": "req_custom"})
         assert resp.headers["X-Request-Id"] == "req_custom"
 

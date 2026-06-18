@@ -31,14 +31,10 @@ def _upload_one(
 
 
 class TestGetDocumentMetadata:
-    def test_returns_full_metadata(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_returns_full_metadata(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload_one(client, sid, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
         assert resp.status_code == 200
         body = resp.json()
         assert body["source_document_id"] == doc_id
@@ -53,9 +49,7 @@ class TestGetDocumentMetadata:
     ) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload_one(client, sid, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=auth_headers)
         # Обычный user (нет kb.publish) → storage_path = null
         assert resp.json()["storage_path"] is None
 
@@ -67,9 +61,7 @@ class TestGetDocumentMetadata:
     ) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload_one(client, sid, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid}/documents/{doc_id}", headers=admin_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/documents/{doc_id}", headers=admin_headers)
         assert resp.json()["storage_path"] is not None
 
 
@@ -78,9 +70,7 @@ class TestGetDocumentErrors:
         self, client: TestClient, auth_headers: dict[str, str]
     ) -> None:
         sid = _create_job(client, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid}/documents/src_nope", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/documents/src_nope", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_cross_job_document_returns_404(
@@ -89,17 +79,13 @@ class TestGetDocumentErrors:
         sid1 = _create_job(client, auth_headers)
         sid2 = _create_job(client, auth_headers)
         doc_id = _upload_one(client, sid1, auth_headers)
-        resp = client.get(
-            f"/api/v1/setup/{sid2}/documents/{doc_id}", headers=auth_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid2}/documents/{doc_id}", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_unknown_job_returns_404(
         self, client: TestClient, auth_headers: dict[str, str]
     ) -> None:
-        resp = client.get(
-            "/api/v1/setup/unknown_xxxx/documents/src_xx", headers=auth_headers
-        )
+        resp = client.get("/api/v1/setup/unknown_xxxx/documents/src_xx", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_other_user_cannot_access(

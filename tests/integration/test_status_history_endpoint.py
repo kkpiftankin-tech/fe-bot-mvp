@@ -29,9 +29,7 @@ def _upload(client: TestClient, sid: str, headers: dict[str, str]) -> str:
     ).json()["uploaded"][0]["source_document_id"]
 
 
-def _record_transition(
-    app, doc_id: str, new_status: SourceDocumentStatus, event_id: str
-) -> None:
+def _record_transition(app, doc_id: str, new_status: SourceDocumentStatus, event_id: str) -> None:
     from fe_bot.api.dependencies import get_source_lifecycle
 
     svc = app.dependency_overrides[get_source_lifecycle]()
@@ -110,9 +108,7 @@ class TestStatusHistoryHappyPath:
 
 
 class TestStatusHistoryErrors:
-    def test_unknown_doc_404(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_unknown_doc_404(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         resp = client.get(
             f"/api/v1/setup/{sid}/sources/src_nope/status-history",
@@ -120,9 +116,7 @@ class TestStatusHistoryErrors:
         )
         assert resp.status_code == 404
 
-    def test_other_user_403(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_other_user_403(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         doc_id = _upload(client, sid, auth_headers)
         resp = client.get(

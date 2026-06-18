@@ -8,9 +8,7 @@ from fastapi.testclient import TestClient
 pytestmark = pytest.mark.integration
 
 
-def _create_job_and_get_card(
-    client: TestClient, headers: dict[str, str]
-) -> tuple[str, str]:
+def _create_job_and_get_card(client: TestClient, headers: dict[str, str]) -> tuple[str, str]:
     """Создаёт job, прогоняет pipeline, возвращает (setup_job_id, doc_id первой карточки)."""
     create = client.post(
         "/api/v1/setup/jobs",

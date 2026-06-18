@@ -98,3 +98,18 @@ class ParserRegistry:
     def list_supported_content_types(self) -> list[str]:
         """Список content_type, для которых есть зарегистрированная стратегия."""
         return [ct for ct, sid in _CONTENT_TYPE_MAPPING.items() if sid in self._strategies]
+
+    def resolve(self, content_type: str) -> ParserStrategy:
+        """Алиас на ``get_strategy`` — единая точка входа для orchestrator."""
+        return self.get_strategy(content_type)
+
+    def strategy_enum_for(self, content_type: str) -> ParserStrategyEnum:
+        """Возвращает ParserStrategyEnum по content_type без поиска стратегии.
+
+        Используется orchestrator'ом для metrics labels и быстрого
+        отказа UNSUPPORTED_PARSE_FORMAT.
+        """
+        strategy_id = _CONTENT_TYPE_MAPPING.get(content_type)
+        if strategy_id is None:
+            raise UnsupportedFormatError(content_type)
+        return strategy_id

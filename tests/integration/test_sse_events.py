@@ -85,10 +85,7 @@ class TestSSEReplay:
         assert "id: 3" in body
         # Данные — JSON
         # Найдём строку 'data: {"setup_job_id": "...", "event_type": "setup.kb.ready"...}'
-        lines = [
-            line for line in body.split("\n")
-            if line.startswith("data: ")
-        ]
+        lines = [line for line in body.split("\n") if line.startswith("data: ")]
         # 1 событие от create_job (setup.job.created) + 3 события из bus = 4
         assert len(lines) == 4
         last = json.loads(lines[-1].removeprefix("data: "))
@@ -100,9 +97,7 @@ class TestSSEAccessControl:
     def test_unknown_job_returns_404(
         self, client: TestClient, auth_headers: dict[str, str]
     ) -> None:
-        resp = client.get(
-            "/api/v1/setup/unknown_xxxxxxx/events", headers=auth_headers
-        )
+        resp = client.get("/api/v1/setup/unknown_xxxxxxx/events", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_other_user_job_returns_403(
@@ -135,9 +130,7 @@ class TestSSEAccessControl:
         bus = app_with_clean_state.dependency_overrides[get_event_bus]()
         sid = _create_job(client, auth_headers)
         _publish_terminal_chain(bus, sid)
-        resp = client.get(
-            f"/api/v1/setup/{sid}/events", headers=admin_headers
-        )
+        resp = client.get(f"/api/v1/setup/{sid}/events", headers=admin_headers)
         assert resp.status_code == 200
         assert "setup.kb.ready" in resp.text
 

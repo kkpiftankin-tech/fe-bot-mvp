@@ -123,9 +123,7 @@ def app_with_clean_state() -> FastAPI:
         metrics=metrics_registry,
         lifecycle=source_lifecycle,
     )
-    parser_svc = DocumentParserService(
-        artifact_storage=storage, source_registry=registry
-    )
+    parser_svc = DocumentParserService(artifact_storage=storage, source_registry=registry)
     # Fallback-only generator: не требует Ollama, всегда возвращает review_required.
     # Для тестов LLM-режима — отдельные респ-моки в test_run_pipeline.py.
     fallback = RAGCardFallbackGenerator()
@@ -165,9 +163,7 @@ def app_with_clean_state() -> FastAPI:
     )
 
     # S6 wiring
-    retrieval_svc = RetrievalService(
-        embedding=embedding_svc, index_client=vector_index_client
-    )
+    retrieval_svc = RetrievalService(embedding=embedding_svc, index_client=vector_index_client)
     evaluation_svc = RAGEvaluationService(retrieval=retrieval_svc)
     kb_repository = InMemoryKBRepository()
     kb_publish_svc = KBPublishService(repository=kb_repository)
@@ -209,6 +205,90 @@ def app_with_clean_state() -> FastAPI:
     app.dependency_overrides[get_processing_log_repo] = lambda: processing_log_repo
     app.dependency_overrides[get_lineage_repo] = lambda: lineage_repo
     app.dependency_overrides[get_source_lifecycle] = lambda: source_lifecycle
+
+    # SETUP-04: parser orchestrator wiring (T-S04-023..026).
+    from schemas.setup.parse_job import ParserStrategy as _PSEnum
+
+    from fe_bot.api.dependencies import (
+        get_document_parser_orchestrator,
+        get_parse_document_repo,
+        get_parse_job_repo,
+        get_parse_report_repo,
+        get_parsed_section_repo,
+        get_parser_registry,
+    )
+    from fe_bot.setup.parser.classifier import SectionClassifier as _Cls
+    from fe_bot.setup.parser.document_repository import (
+        InMemoryParseJobDocumentRepository as _PDR,
+    )
+    from fe_bot.setup.parser.job_repository import (
+        InMemoryParseJobRepository as _PJR,
+    )
+    from fe_bot.setup.parser.orchestrator import (
+        DocumentParserOrchestrator as _DPO,
+    )
+    from fe_bot.setup.parser.registry import ParserRegistry as _PR
+    from fe_bot.setup.parser.report_repository import (
+        InMemoryDocumentParseReportRepository as _PRR,
+    )
+    from fe_bot.setup.parser.section_repository import (
+        InMemoryParsedSectionRepository as _PSR,
+    )
+    from fe_bot.setup.parser.strategies import (
+        CSVParserStrategy as _CSV,
+    )
+    from fe_bot.setup.parser.strategies import (
+        DOCXParserStrategy as _DOCX,
+    )
+    from fe_bot.setup.parser.strategies import (
+        JSONParserStrategy as _JSON,
+    )
+    from fe_bot.setup.parser.strategies import (
+        MarkdownParserStrategy as _MD,
+    )
+    from fe_bot.setup.parser.strategies import (
+        PDFParserStrategy as _PDF,
+    )
+    from fe_bot.setup.parser.strategies import (
+        PlainTextParserStrategy as _TXT,
+    )
+    from fe_bot.setup.parser.strategies import (
+        XLSXParserStrategy as _XLSX,
+    )
+
+    parser_reg = _PR()
+    parser_reg.register(_PSEnum.MARKDOWN, _MD())
+    parser_reg.register(_PSEnum.TEXT, _TXT())
+    parser_reg.register(_PSEnum.CSV, _CSV())
+    parser_reg.register(_PSEnum.JSON, _JSON())
+    parser_reg.register(_PSEnum.PDF_TEXT, _PDF())
+    parser_reg.register(_PSEnum.DOCX, _DOCX())
+    parser_reg.register(_PSEnum.XLSX, _XLSX())
+    parse_job_repo = _PJR()
+    parse_doc_repo = _PDR()
+    parsed_section_repo = _PSR()
+    parse_report_repo = _PRR()
+    parser_orchestrator = _DPO(
+        parse_job_repo=parse_job_repo,
+        document_repo=parse_doc_repo,
+        section_repo=parsed_section_repo,
+        report_repo=parse_report_repo,
+        parser_registry=parser_reg,
+        classifier=_Cls(),
+        source_lifecycle=source_lifecycle,
+        artifact_storage=storage,
+        event_bus=bus,
+        audit_service=audit_svc,
+        metrics=metrics_registry,
+    )
+    app.dependency_overrides[get_parser_registry] = lambda: parser_reg
+    app.dependency_overrides[get_parse_job_repo] = lambda: parse_job_repo
+    app.dependency_overrides[get_parse_document_repo] = lambda: parse_doc_repo
+    app.dependency_overrides[get_parsed_section_repo] = lambda: parsed_section_repo
+    app.dependency_overrides[get_parse_report_repo] = lambda: parse_report_repo
+    app.dependency_overrides[get_document_parser_orchestrator] = (
+        lambda: parser_orchestrator
+    )
     yield app
     app.dependency_overrides.clear()
     # Очистка module-level singletons (на всякий случай для других тестов).

@@ -56,8 +56,7 @@ def cleanup_orphans(
     ignore_min_age: bool = Query(
         default=False,
         description=(
-            "True — удалять объекты независимо от возраста (опасно). "
-            "False — применять TTL-фильтр."
+            "True — удалять объекты независимо от возраста (опасно). False — применять TTL-фильтр."
         ),
     ),
     principal: Principal = Depends(require_permission(Permission.KB_ADMIN_CLEANUP)),
@@ -80,10 +79,7 @@ def cleanup_orphans(
     if dry_run:
         message = f"Dry run: found {len(result.orphan_paths)} orphan(s); none deleted."
     else:
-        message = (
-            f"Deleted {len(result.deleted_paths)} orphan(s); "
-            f"errors: {len(result.errors)}"
-        )
+        message = f"Deleted {len(result.deleted_paths)} orphan(s); errors: {len(result.errors)}"
 
     return CleanupOrphansResponse(
         dry_run=result.dry_run,

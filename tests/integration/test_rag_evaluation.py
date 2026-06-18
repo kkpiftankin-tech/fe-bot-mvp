@@ -51,13 +51,9 @@ class StubRetrievalService:
 
 class TestRecallAtK:
     def test_perfect_recall(self) -> None:
-        retrieval = StubRetrievalService(
-            responses={"q1": ["a", "b", "c"]}
-        )
+        retrieval = StubRetrievalService(responses={"q1": ["a", "b", "c"]})
         svc = RAGEvaluationService(retrieval=retrieval)  # type: ignore[arg-type]
-        report = svc.evaluate(
-            [GoldenQuery(query="q1", expected_doc_ids=["a", "b", "c"])], top_k=3
-        )
+        report = svc.evaluate([GoldenQuery(query="q1", expected_doc_ids=["a", "b", "c"])], top_k=3)
         assert report.queries_total == 1
         assert report.mean_recall_at_k == 1.0
         assert report.mean_precision_at_k == 1.0
@@ -66,26 +62,18 @@ class TestRecallAtK:
 
     def test_partial_recall(self) -> None:
         # Только 1 из 2 expected найдены.
-        retrieval = StubRetrievalService(
-            responses={"q1": ["a", "x", "y", "z", "w"]}
-        )
+        retrieval = StubRetrievalService(responses={"q1": ["a", "x", "y", "z", "w"]})
         svc = RAGEvaluationService(retrieval=retrieval)  # type: ignore[arg-type]
-        report = svc.evaluate(
-            [GoldenQuery(query="q1", expected_doc_ids=["a", "b"])], top_k=5
-        )
+        report = svc.evaluate([GoldenQuery(query="q1", expected_doc_ids=["a", "b"])], top_k=5)
         # recall = 1/2 = 0.5; precision = 1/5 = 0.2; rr = 1/1 = 1.0.
         assert report.mean_recall_at_k == 0.5
         assert report.mean_precision_at_k == 0.2
         assert report.mean_reciprocal_rank == 1.0
 
     def test_zero_recall(self) -> None:
-        retrieval = StubRetrievalService(
-            responses={"q1": ["x", "y", "z"]}
-        )
+        retrieval = StubRetrievalService(responses={"q1": ["x", "y", "z"]})
         svc = RAGEvaluationService(retrieval=retrieval)  # type: ignore[arg-type]
-        report = svc.evaluate(
-            [GoldenQuery(query="q1", expected_doc_ids=["a", "b"])], top_k=3
-        )
+        report = svc.evaluate([GoldenQuery(query="q1", expected_doc_ids=["a", "b"])], top_k=3)
         assert report.mean_recall_at_k == 0.0
         assert report.mean_precision_at_k == 0.0
         assert report.mean_reciprocal_rank == 0.0
@@ -95,9 +83,7 @@ class TestRecallAtK:
 class TestNoContext:
     def test_no_context_rate(self) -> None:
         # q1 → есть hits, q2 → пусто.
-        retrieval = StubRetrievalService(
-            responses={"q1": ["a"], "q2": []}
-        )
+        retrieval = StubRetrievalService(responses={"q1": ["a"], "q2": []})
         svc = RAGEvaluationService(retrieval=retrieval)  # type: ignore[arg-type]
         report = svc.evaluate(
             [
@@ -113,17 +99,13 @@ class TestReciprocalRank:
     def test_rr_first_position(self) -> None:
         retrieval = StubRetrievalService(responses={"q": ["a", "b", "c"]})
         svc = RAGEvaluationService(retrieval=retrieval)  # type: ignore[arg-type]
-        report = svc.evaluate(
-            [GoldenQuery(query="q", expected_doc_ids=["a"])], top_k=3
-        )
+        report = svc.evaluate([GoldenQuery(query="q", expected_doc_ids=["a"])], top_k=3)
         assert report.mean_reciprocal_rank == 1.0
 
     def test_rr_third_position(self) -> None:
         retrieval = StubRetrievalService(responses={"q": ["x", "y", "a"]})
         svc = RAGEvaluationService(retrieval=retrieval)  # type: ignore[arg-type]
-        report = svc.evaluate(
-            [GoldenQuery(query="q", expected_doc_ids=["a"])], top_k=3
-        )
+        report = svc.evaluate([GoldenQuery(query="q", expected_doc_ids=["a"])], top_k=3)
         assert abs(report.mean_reciprocal_rank - 1 / 3) < 1e-9
 
 
@@ -148,9 +130,7 @@ class TestGate:
         assert report.passed is True
 
     def test_fails_below_threshold(self) -> None:
-        retrieval = StubRetrievalService(
-            responses={"q1": [], "q2": []}
-        )
+        retrieval = StubRetrievalService(responses={"q1": [], "q2": []})
         svc = RAGEvaluationService(retrieval=retrieval)  # type: ignore[arg-type]
         report = svc.evaluate(
             [
@@ -185,9 +165,7 @@ class TestGate:
             retrieval=retrieval,  # type: ignore[arg-type]
             threshold_recall_at_5=0.4,
         )
-        report = svc.evaluate(
-            [GoldenQuery(query="q", expected_doc_ids=["a", "b"])], top_k=5
-        )
+        report = svc.evaluate([GoldenQuery(query="q", expected_doc_ids=["a", "b"])], top_k=5)
         # recall = 0.5 > 0.4 → passed
         assert report.passed is True
 

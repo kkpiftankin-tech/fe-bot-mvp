@@ -43,9 +43,7 @@ class TestBatchPersistence:
         body = resp.json()
         batch_id = body["upload_batch_id"]
 
-        registry = app_with_clean_state.dependency_overrides[
-            get_batch_registry
-        ]()
+        registry = app_with_clean_state.dependency_overrides[get_batch_registry]()
         batch = registry.get(batch_id)
         assert batch.status == UploadBatchStatus.COMPLETED
         assert batch.files_total == 1
@@ -67,14 +65,10 @@ class TestBatchPersistence:
             ("files", ("good.md", b"ok", "text/markdown")),
             ("files", ("bad.exe", b"bad", "application/x-msdownload")),
         ]
-        resp = client.post(
-            f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers
-        )
+        resp = client.post(f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers)
         batch_id = resp.json()["upload_batch_id"]
 
-        registry = app_with_clean_state.dependency_overrides[
-            get_batch_registry
-        ]()
+        registry = app_with_clean_state.dependency_overrides[get_batch_registry]()
         batch = registry.get(batch_id)
         assert batch.status == UploadBatchStatus.PARTIALLY_COMPLETED
         assert batch.files_total == 2
@@ -94,14 +88,10 @@ class TestBatchPersistence:
             ("files", ("a.exe", b"bad", "application/x-msdownload")),
             ("files", ("b.exe", b"bad", "application/x-msdownload")),
         ]
-        resp = client.post(
-            f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers
-        )
+        resp = client.post(f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers)
         batch_id = resp.json()["upload_batch_id"]
 
-        registry = app_with_clean_state.dependency_overrides[
-            get_batch_registry
-        ]()
+        registry = app_with_clean_state.dependency_overrides[get_batch_registry]()
         batch = registry.get(batch_id)
         assert batch.status == UploadBatchStatus.FAILED
         assert batch.files_uploaded == 0
@@ -133,9 +123,7 @@ class TestBatchPersistence:
         )
         batch_id = resp.json()["upload_batch_id"]
 
-        registry = app_with_clean_state.dependency_overrides[
-            get_batch_registry
-        ]()
+        registry = app_with_clean_state.dependency_overrides[get_batch_registry]()
         batch = registry.get(batch_id)
         assert batch.status == UploadBatchStatus.FAILED
         assert batch.duplicates_detected == 1
@@ -160,9 +148,7 @@ class TestBatchListing:
                 headers=auth_headers,
             )
 
-        registry = app_with_clean_state.dependency_overrides[
-            get_batch_registry
-        ]()
+        registry = app_with_clean_state.dependency_overrides[get_batch_registry]()
         batches = registry.list_for_job(sid)
         assert len(batches) == 3
         # Все в COMPLETED.
@@ -189,9 +175,7 @@ class TestRequestIdReuseConflict:
         assert first.status_code == 201
 
         # Симулируем cache eviction (TTL истёк, batch остался в registry).
-        cache = app_with_clean_state.dependency_overrides[
-            get_idempotency_cache
-        ]()
+        cache = app_with_clean_state.dependency_overrides[get_idempotency_cache]()
         cache.clear()
 
         # Повторный POST с тем же request_id → 409.

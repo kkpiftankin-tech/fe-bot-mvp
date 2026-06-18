@@ -116,9 +116,7 @@ class TestReindexErrors:
         assert resp.status_code == 409
         assert "No approved cards" in resp.json()["detail"]
 
-    def test_unknown_job_returns_404(
-        self, client: TestClient
-    ) -> None:
+    def test_unknown_job_returns_404(self, client: TestClient) -> None:
         resp = client.post(
             "/api/v1/setup/unknown/reindex",
             headers=_admin_headers(),
@@ -164,9 +162,7 @@ class TestReindexErrors:
         _add_approved_card(registry, sid, "x.v1")
 
         # Симулируем Qdrant down
-        index_client = app_with_clean_state.dependency_overrides[
-            get_vector_index_client
-        ]()
+        index_client = app_with_clean_state.dependency_overrides[get_vector_index_client]()
         index_client.unavailable = True
 
         resp = client.post(

@@ -103,9 +103,7 @@ def _check_job_access(job: RAGSetupJob, principal: Principal) -> None:
     )
 
 
-def _ensure_document_in_job(
-    document: SourceDocument, setup_job_id: str
-) -> None:
+def _ensure_document_in_job(document: SourceDocument, setup_job_id: str) -> None:
     """Cross-job protection — нельзя видеть документ из чужого job по id."""
     if document.setup_job_id != setup_job_id:
         raise HTTPException(
@@ -114,15 +112,11 @@ def _ensure_document_in_job(
         )
 
 
-def _paginate[T](
-    items: list[T], page: int, page_size: int
-) -> tuple[list[T], PaginationDTO]:
+def _paginate[T](items: list[T], page: int, page_size: int) -> tuple[list[T], PaginationDTO]:
     total = len(items)
     start = (page - 1) * page_size
     end = start + page_size
-    return items[start:end], PaginationDTO(
-        page=page, page_size=page_size, total=total
-    )
+    return items[start:end], PaginationDTO(page=page, page_size=page_size, total=total)
 
 
 _SORT_KEYS = {"filename", "uploaded_at", "size_bytes", "status"}
@@ -143,9 +137,7 @@ def _apply_sort(items: list[SourceDocument], sort: str) -> list[SourceDocument]:
     return sorted(items, key=lambda d: getattr(d, field), reverse=reverse)
 
 
-def _build_list_item(
-    doc: SourceDocument, counters: LineageCounters
-) -> SourceDocumentListItemDTO:
+def _build_list_item(doc: SourceDocument, counters: LineageCounters) -> SourceDocumentListItemDTO:
     return SourceDocumentListItemDTO(
         source_document_id=doc.source_document_id,
         setup_job_id=doc.setup_job_id,
@@ -176,9 +168,7 @@ def _build_list_item(
 )
 def list_sources(
     setup_job_id: str = Path(..., min_length=1),
-    status_filter: list[SourceDocumentStatus] | None = Query(
-        default=None, alias="status"
-    ),
+    status_filter: list[SourceDocumentStatus] | None = Query(default=None, alias="status"),
     document_kind: str | None = Query(default=None, max_length=50),
     content_type: str | None = Query(default=None, max_length=100),
     owner: str | None = Query(default=None, max_length=128),
@@ -188,9 +178,7 @@ def list_sources(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     sort: str = Query(default="uploaded_at:desc"),
-    principal: Principal = Depends(
-        require_permission(Permission.KB_SOURCE_LIST)
-    ),
+    principal: Principal = Depends(require_permission(Permission.KB_SOURCE_LIST)),
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
     registry: InMemorySourceRegistry = Depends(get_source_registry),
     lineage: InMemoryLineageRepository = Depends(get_lineage_repo),
@@ -198,25 +186,19 @@ def list_sources(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal)
 
     documents = list(registry.list_for_job(setup_job_id))
     if not include_removed:
-        documents = [
-            d for d in documents if d.status != SourceDocumentStatus.REMOVED
-        ]
+        documents = [d for d in documents if d.status != SourceDocumentStatus.REMOVED]
 
     if status_filter:
         wanted = set(status_filter)
         documents = [d for d in documents if d.status in wanted]
     if document_kind:
         documents = [
-            d
-            for d in documents
-            if d.document_kind and d.document_kind.value == document_kind
+            d for d in documents if d.document_kind and d.document_kind.value == document_kind
         ]
     if content_type:
         documents = [d for d in documents if d.content_type == content_type]
@@ -237,13 +219,8 @@ def list_sources(
 
     paged, pagination = _paginate(documents, page, page_size)
 
-    items = [
-        _build_list_item(d, lineage.counters(d.source_document_id))
-        for d in paged
-    ]
-    return ListSourcesResponse(
-        setup_job_id=setup_job_id, items=items, pagination=pagination
-    )
+    items = [_build_list_item(d, lineage.counters(d.source_document_id)) for d in paged]
+    return ListSourcesResponse(setup_job_id=setup_job_id, items=items, pagination=pagination)
 
 
 # ============================================================
@@ -259,9 +236,7 @@ def list_sources(
 def get_source_details(
     setup_job_id: str = Path(..., min_length=1),
     source_document_id: str = Path(..., min_length=1),
-    principal: Principal = Depends(
-        require_permission(Permission.KB_SOURCE_READ)
-    ),
+    principal: Principal = Depends(require_permission(Permission.KB_SOURCE_READ)),
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
     registry: InMemorySourceRegistry = Depends(get_source_registry),
     lineage: InMemoryLineageRepository = Depends(get_lineage_repo),
@@ -270,24 +245,18 @@ def get_source_details(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal)
 
     try:
         document = registry.get(source_document_id)
     except SourceDocumentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _ensure_document_in_job(document, setup_job_id)
 
     include_paths = principal.has_permission(Permission.KB_PUBLISH)
     user_meta = document.metadata.get("user", {}) or {}
-    system_meta = {
-        k: v for k, v in document.metadata.items() if k != "user"
-    }
+    system_meta = {k: v for k, v in document.metadata.items() if k != "user"}
     latest = history.latest_for_document(source_document_id)
     last_change: datetime | None = latest.changed_at if latest else None
     return SourceDocumentDetailsDTO(
@@ -329,9 +298,7 @@ def get_status_history(
     since: datetime | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
-    principal: Principal = Depends(
-        require_permission(Permission.KB_SOURCE_READ)
-    ),
+    principal: Principal = Depends(require_permission(Permission.KB_SOURCE_READ)),
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
     registry: InMemorySourceRegistry = Depends(get_source_registry),
     history: InMemoryStatusHistoryRepository = Depends(get_status_history_repo),
@@ -339,17 +306,13 @@ def get_status_history(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal)
 
     try:
         document = registry.get(source_document_id)
     except SourceDocumentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _ensure_document_in_job(document, setup_job_id)
 
     entries = history.list_for_document(source_document_id)
@@ -357,9 +320,7 @@ def get_status_history(
         entries = [e for e in entries if e.changed_at >= since]
 
     paged_entries, pagination = _paginate(entries, page, page_size)
-    items: list[StatusHistoryEntryDTO] = [
-        to_status_history_dto(e) for e in paged_entries
-    ]
+    items: list[StatusHistoryEntryDTO] = [to_status_history_dto(e) for e in paged_entries]
     return StatusHistoryResponse(
         source_document_id=source_document_id,
         items=items,
@@ -384,34 +345,24 @@ def get_processing_log(
     level: ProcessingLogLevel | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
-    principal: Principal = Depends(
-        require_permission(Permission.KB_SOURCE_LOG_READ)
-    ),
+    principal: Principal = Depends(require_permission(Permission.KB_SOURCE_LOG_READ)),
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
     registry: InMemorySourceRegistry = Depends(get_source_registry),
-    processing_log: InMemoryProcessingLogRepository = Depends(
-        get_processing_log_repo
-    ),
+    processing_log: InMemoryProcessingLogRepository = Depends(get_processing_log_repo),
 ) -> ProcessingLogResponse:
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal)
 
     try:
         document = registry.get(source_document_id)
     except SourceDocumentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _ensure_document_in_job(document, setup_job_id)
 
-    entries = processing_log.list_for_document(
-        source_document_id, step=step, level=level
-    )
+    entries = processing_log.list_for_document(source_document_id, step=step, level=level)
     paged, pagination = _paginate(entries, page, page_size)
     return ProcessingLogResponse(
         source_document_id=source_document_id,
@@ -429,9 +380,7 @@ def get_lineage(
     setup_job_id: str = Path(..., min_length=1),
     source_document_id: str = Path(..., min_length=1),
     target_type: LineageTargetType | None = Query(default=None),
-    principal: Principal = Depends(
-        require_permission(Permission.KB_SOURCE_LINEAGE_READ)
-    ),
+    principal: Principal = Depends(require_permission(Permission.KB_SOURCE_LINEAGE_READ)),
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
     registry: InMemorySourceRegistry = Depends(get_source_registry),
     lineage: InMemoryLineageRepository = Depends(get_lineage_repo),
@@ -439,22 +388,16 @@ def get_lineage(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal)
 
     try:
         document = registry.get(source_document_id)
     except SourceDocumentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _ensure_document_in_job(document, setup_job_id)
 
-    relations = lineage.list_for_source(
-        source_document_id, target_type=target_type
-    )
+    relations = lineage.list_for_source(source_document_id, target_type=target_type)
     counters = lineage.counters(source_document_id)
     return LineageResponse(
         source_document_id=source_document_id,
@@ -491,9 +434,7 @@ def patch_source_metadata(
     setup_job_id: str = Path(..., min_length=1),
     source_document_id: str = Path(..., min_length=1),
     event_id: str | None = Query(default=None, max_length=128),
-    principal: Principal = Depends(
-        require_permission(Permission.KB_SOURCE_METADATA_UPDATE)
-    ),
+    principal: Principal = Depends(require_permission(Permission.KB_SOURCE_METADATA_UPDATE)),
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
     registry: InMemorySourceRegistry = Depends(get_source_registry),
     lifecycle: SourceLifecycleService = Depends(get_source_lifecycle),
@@ -506,17 +447,13 @@ def patch_source_metadata(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal)
 
     try:
         document = registry.get(source_document_id)
     except SourceDocumentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _ensure_document_in_job(document, setup_job_id)
 
     try:
@@ -539,8 +476,7 @@ def patch_source_metadata(
         # Sanitize/length validators в SourceDocumentUserMetadata.
         # errors() содержит ctx с raw exception — отфильтруем для JSON-safety.
         safe_errors = [
-            {k: v for k, v in err.items() if k != "ctx"}
-            for err in exc.errors(include_url=False)
+            {k: v for k, v in err.items() if k != "ctx"} for err in exc.errors(include_url=False)
         ]
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -575,9 +511,7 @@ def delete_source(
     setup_job_id: str = Path(..., min_length=1),
     source_document_id: str = Path(..., min_length=1),
     reason: str | None = Query(default=None, max_length=2000),
-    principal: Principal = Depends(
-        require_permission(Permission.KB_SOURCE_REMOVE)
-    ),
+    principal: Principal = Depends(require_permission(Permission.KB_SOURCE_REMOVE)),
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
     registry: InMemorySourceRegistry = Depends(get_source_registry),
     upload_svc: DocumentUploadService = Depends(get_upload_service),
@@ -590,17 +524,13 @@ def delete_source(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal)
 
     try:
         document = registry.get(source_document_id)
     except SourceDocumentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _ensure_document_in_job(document, setup_job_id)
 
     # AC-29: документ в published KB нельзя удалить без admin (KB_PUBLISH).
@@ -625,9 +555,7 @@ def delete_source(
             reason=reason,
         )
     except SourceDocumentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except JobNotAcceptingUploadsError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -643,7 +571,6 @@ def delete_source(
         status=removed.status.value,
         message=f"Source document {removed.source_document_id} removed",
     )
-
 
 
 # ============================================================
@@ -662,9 +589,7 @@ def retry_source(
     from_step: ProcessingLogStep = Query(default=ProcessingLogStep.PARSING),
     event_id: str | None = Query(default=None, max_length=128),
     reason: str | None = Query(default=None, max_length=2000),
-    principal: Principal = Depends(
-        require_permission(Permission.KB_SETUP_RUN)
-    ),
+    principal: Principal = Depends(require_permission(Permission.KB_SETUP_RUN)),
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
     registry: InMemorySourceRegistry = Depends(get_source_registry),
     lifecycle: SourceLifecycleService = Depends(get_source_lifecycle),
@@ -676,17 +601,13 @@ def retry_source(
     try:
         job = orchestrator.get_job(setup_job_id)
     except JobNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _check_job_access(job, principal)
 
     try:
         document = registry.get(source_document_id)
     except SourceDocumentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     _ensure_document_in_job(document, setup_job_id)
 
     effective_event_id = event_id or f"retry:{source_document_id}:{from_step.value}"
@@ -704,9 +625,7 @@ def retry_source(
             detail={
                 "error_code": "INVALID_RETRY_STATE",
                 "message": str(exc),
-                "current_status": (
-                    exc.old_status.value if exc.old_status else None
-                ),
+                "current_status": (exc.old_status.value if exc.old_status else None),
             },
         ) from exc
 

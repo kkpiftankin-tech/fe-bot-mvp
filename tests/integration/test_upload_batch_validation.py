@@ -37,9 +37,7 @@ class TestBatchCountLimit:
             )
             for i in range(MAX_BATCH_FILES_COUNT + 1)
         ]
-        resp = client.post(
-            f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers
-        )
+        resp = client.post(f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers)
         assert resp.status_code == 413
         detail = resp.json()["detail"]
         assert detail["error_code"] == "BATCH_TOO_LARGE"
@@ -55,25 +53,19 @@ class TestFilenameUniqueness:
             ("files", ("same.md", b"first", "text/markdown")),
             ("files", ("same.md", b"second", "text/markdown")),
         ]
-        resp = client.post(
-            f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers
-        )
+        resp = client.post(f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers)
         assert resp.status_code == 400
         detail = resp.json()["detail"]
         assert detail["error_code"] == "INVALID_FILENAME"
         assert detail["details"]["reason"] == "duplicate_in_batch"
 
-    def test_unique_filenames_ok(
-        self, client: TestClient, auth_headers: dict[str, str]
-    ) -> None:
+    def test_unique_filenames_ok(self, client: TestClient, auth_headers: dict[str, str]) -> None:
         sid = _create_job(client, auth_headers)
         files = [
             ("files", ("a.md", b"first", "text/markdown")),
             ("files", ("b.md", b"second", "text/markdown")),
         ]
-        resp = client.post(
-            f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers
-        )
+        resp = client.post(f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers)
         assert resp.status_code == 201
         assert resp.json()["summary"]["files_uploaded"] == 2
 
@@ -88,9 +80,7 @@ class TestPartialSuccess:
             ("files", ("bad.exe", b"binary", "application/x-msdownload")),
             ("files", ("empty.md", b"", "text/markdown")),
         ]
-        resp = client.post(
-            f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers
-        )
+        resp = client.post(f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers)
         assert resp.status_code == 201
         body = resp.json()
         assert body["summary"]["files_total"] == 3
@@ -116,9 +106,7 @@ class TestSafetyChecks:
         files = [
             ("files", ("..weird.md", b"content", "text/markdown")),
         ]
-        resp = client.post(
-            f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers
-        )
+        resp = client.post(f"/api/v1/setup/{sid}/documents", files=files, headers=auth_headers)
         assert resp.status_code == 201
         body = resp.json()
         assert body["summary"]["files_rejected"] == 1

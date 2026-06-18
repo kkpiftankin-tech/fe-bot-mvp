@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from fastapi import Depends, Header, HTTPException, status
+from schemas.setup.parse_job import ParserStrategy as ParserStrategyEnum
 
 from fe_bot.audit.service import AuditService, InMemoryAuditLog
 from fe_bot.auth.permissions import Permission
@@ -32,7 +33,29 @@ from fe_bot.setup.evaluation.service import RAGEvaluationService
 from fe_bot.setup.events import EventBus
 from fe_bot.setup.metadata_validation.service import MetadataValidationService
 from fe_bot.setup.orchestrator import SetupOrchestrator
+from fe_bot.setup.parser.classifier import SectionClassifier
+from fe_bot.setup.parser.document_repository import (
+    InMemoryParseJobDocumentRepository,
+)
+from fe_bot.setup.parser.job_repository import InMemoryParseJobRepository
+from fe_bot.setup.parser.orchestrator import DocumentParserOrchestrator
+from fe_bot.setup.parser.registry import ParserRegistry
+from fe_bot.setup.parser.report_repository import (
+    InMemoryDocumentParseReportRepository,
+)
+from fe_bot.setup.parser.section_repository import (
+    InMemoryParsedSectionRepository,
+)
 from fe_bot.setup.parser.service import DocumentParserService
+from fe_bot.setup.parser.strategies import (
+    CSVParserStrategy,
+    DOCXParserStrategy,
+    JSONParserStrategy,
+    MarkdownParserStrategy,
+    PDFParserStrategy,
+    PlainTextParserStrategy,
+    XLSXParserStrategy,
+)
 from fe_bot.setup.pipeline import SetupPipeline
 from fe_bot.setup.publish.service import (
     InMemoryKBRepository,
@@ -130,8 +153,36 @@ _kb_publish = KBPublishService(repository=_kb_repository)
 # _audit_log / _audit_service / _metrics — определены раньше (нужны для DocumentUploadService).
 _idempotency_cache = InMemoryIdempotencyCache()
 _batch_registry = InMemoryBatchRegistry()
-_orphan_cleanup = OrphanCleanupService(
-    storage=_artifact_storage, registry=_source_registry
+_orphan_cleanup = OrphanCleanupService(storage=_artifact_storage, registry=_source_registry)
+
+# SETUP-04: parser orchestrator singletons.
+_parser_registry = ParserRegistry()
+_parser_registry.register(ParserStrategyEnum.MARKDOWN, MarkdownParserStrategy())
+_parser_registry.register(ParserStrategyEnum.TEXT, PlainTextParserStrategy())
+_parser_registry.register(ParserStrategyEnum.CSV, CSVParserStrategy())
+_parser_registry.register(ParserStrategyEnum.JSON, JSONParserStrategy())
+_parser_registry.register(ParserStrategyEnum.PDF_TEXT, PDFParserStrategy())
+_parser_registry.register(ParserStrategyEnum.DOCX, DOCXParserStrategy())
+_parser_registry.register(ParserStrategyEnum.XLSX, XLSXParserStrategy())
+
+_parse_job_repo = InMemoryParseJobRepository()
+_parse_doc_repo = InMemoryParseJobDocumentRepository()
+_parsed_section_repo = InMemoryParsedSectionRepository()
+_parse_report_repo = InMemoryDocumentParseReportRepository()
+_section_classifier = SectionClassifier()
+
+_document_parser_orchestrator = DocumentParserOrchestrator(
+    parse_job_repo=_parse_job_repo,
+    document_repo=_parse_doc_repo,
+    section_repo=_parsed_section_repo,
+    report_repo=_parse_report_repo,
+    parser_registry=_parser_registry,
+    classifier=_section_classifier,
+    source_lifecycle=_source_lifecycle,
+    artifact_storage=_artifact_storage,
+    event_bus=_event_bus,
+    audit_service=_audit_service,
+    metrics=_metrics,
 )
 
 
@@ -248,6 +299,33 @@ def get_lineage_repo() -> InMemoryLineageRepository:
 
 def get_source_lifecycle() -> SourceLifecycleService:
     return _source_lifecycle
+
+
+# SETUP-04 DI factories.
+
+
+def get_parser_registry() -> ParserRegistry:
+    return _parser_registry
+
+
+def get_parse_job_repo() -> InMemoryParseJobRepository:
+    return _parse_job_repo
+
+
+def get_parse_document_repo() -> InMemoryParseJobDocumentRepository:
+    return _parse_doc_repo
+
+
+def get_parsed_section_repo() -> InMemoryParsedSectionRepository:
+    return _parsed_section_repo
+
+
+def get_parse_report_repo() -> InMemoryDocumentParseReportRepository:
+    return _parse_report_repo
+
+
+def get_document_parser_orchestrator() -> DocumentParserOrchestrator:
+    return _document_parser_orchestrator
 
 
 def get_principal(
