@@ -56,9 +56,7 @@ class TestAdd:
         with pytest.raises(BatchAlreadyExistsError):
             reg.add(_make_batch())
 
-    def test_returned_record_is_deep_copy(
-        self, reg: InMemoryBatchRegistry
-    ) -> None:
+    def test_returned_record_is_deep_copy(self, reg: InMemoryBatchRegistry) -> None:
         batch = _make_batch()
         reg.add(batch)
         fetched = reg.get("batch_001")
@@ -110,9 +108,7 @@ class TestListForJob:
 
 
 class TestGetByRequestId:
-    def test_finds_by_compound_key(
-        self, reg: InMemoryBatchRegistry
-    ) -> None:
+    def test_finds_by_compound_key(self, reg: InMemoryBatchRegistry) -> None:
         reg.add(
             _make_batch(
                 upload_batch_id="b1",
@@ -147,16 +143,12 @@ class TestGetByRequestId:
         found_other = reg.get_by_request_id("j2", "req_a")
         assert found_other is not None and found_other.upload_batch_id == "b3"
 
-    def test_returns_none_if_not_found(
-        self, reg: InMemoryBatchRegistry
-    ) -> None:
+    def test_returns_none_if_not_found(self, reg: InMemoryBatchRegistry) -> None:
         reg.add(_make_batch(upload_request_id="req_x"))
         assert reg.get_by_request_id("setup_001", "nope") is None
         assert reg.get_by_request_id("nope", "req_x") is None
 
-    def test_no_request_id_not_searchable(
-        self, reg: InMemoryBatchRegistry
-    ) -> None:
+    def test_no_request_id_not_searchable(self, reg: InMemoryBatchRegistry) -> None:
         # Batch без upload_request_id — не находится по compound key
         reg.add(_make_batch(upload_request_id=None))
         assert reg.get_by_request_id("setup_001", "anything") is None

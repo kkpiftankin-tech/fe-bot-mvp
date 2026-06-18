@@ -170,6 +170,4 @@ class RAGSetupJob(BaseModel):
     @property
     def is_terminal(self) -> bool:
         """True если из статуса нельзя никуда уйти (кроме `ready → cancelled`)."""
-        return self.status in {SetupJobStatus.CANCELLED} or (
-            self.status == SetupJobStatus.READY
-        )
+        return self.status in {SetupJobStatus.CANCELLED} or (self.status == SetupJobStatus.READY)

@@ -17,9 +17,7 @@ pytestmark = pytest.mark.unit
 
 class TestValidateFile:
     def test_valid_markdown(self) -> None:
-        validate_file(
-            filename="doc.md", content_type="text/markdown", size_bytes=100
-        )
+        validate_file(filename="doc.md", content_type="text/markdown", size_bytes=100)
 
     def test_missing_filename(self) -> None:
         with pytest.raises(UploadValidationError) as exc:
@@ -36,9 +34,7 @@ class TestValidateFile:
 
     def test_empty_file(self) -> None:
         with pytest.raises(UploadValidationError) as exc:
-            validate_file(
-                filename="empty.md", content_type="text/markdown", size_bytes=0
-            )
+            validate_file(filename="empty.md", content_type="text/markdown", size_bytes=0)
         assert exc.value.code == UploadErrorCode.EMPTY_FILE
         assert exc.value.filename == "empty.md"
 
@@ -110,9 +106,7 @@ class TestFilenameSafety:
             ("file..name.md", "forbidden_sequence"),  # любой `..` запрещён
         ],
     )
-    def test_path_traversal_rejected(
-        self, bad_filename: str, expected_reason: str
-    ) -> None:
+    def test_path_traversal_rejected(self, bad_filename: str, expected_reason: str) -> None:
         with pytest.raises(UploadValidationError) as exc:
             validate_file(
                 filename=bad_filename,
@@ -159,9 +153,7 @@ class TestFilenameSafety:
     def test_filename_at_length_limit_ok(self) -> None:
         # 252 chars + ".md" = 255 chars
         ok_name = "a" * 252 + ".md"
-        validate_file(
-            filename=ok_name, content_type="text/markdown", size_bytes=100
-        )
+        validate_file(filename=ok_name, content_type="text/markdown", size_bytes=100)
 
     @pytest.mark.parametrize(
         "safe_filename",
@@ -179,10 +171,7 @@ class TestFilenameSafety:
             "md": "text/markdown",
             "txt": "text/plain",
             "csv": "text/csv",
-            "docx": (
-                "application/vnd.openxmlformats-officedocument."
-                "wordprocessingml.document"
-            ),
+            "docx": ("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
             "pdf": "application/pdf",
         }
         ext = safe_filename.rsplit(".", 1)[-1].lower()

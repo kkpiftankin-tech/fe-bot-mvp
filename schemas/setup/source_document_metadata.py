@@ -57,17 +57,13 @@ class SourceDocumentUserMetadata(BaseModel):
     @classmethod
     def _validate_tags(cls, v: list[str]) -> list[str]:
         if len(v) > MAX_TAGS_COUNT:
-            raise ValueError(
-                f"Too many tags: {len(v)} > {MAX_TAGS_COUNT}"
-            )
+            raise ValueError(f"Too many tags: {len(v)} > {MAX_TAGS_COUNT}")
         sanitized: list[str] = []
         for tag in v:
             if not tag or not tag.strip():
                 raise ValueError("Tag cannot be empty")
             if len(tag) > MAX_TAG_LENGTH:
-                raise ValueError(
-                    f"Tag too long: {len(tag)} > {MAX_TAG_LENGTH}"
-                )
+                raise ValueError(f"Tag too long: {len(tag)} > {MAX_TAG_LENGTH}")
             sanitized.append(_sanitize_string(tag.strip()))
         return sanitized
 
@@ -77,9 +73,7 @@ class SourceDocumentUserMetadata(BaseModel):
         if v is None:
             return None
         if len(v) > MAX_DESCRIPTION_LENGTH:
-            raise ValueError(
-                f"Description too long: {len(v)} > {MAX_DESCRIPTION_LENGTH}"
-            )
+            raise ValueError(f"Description too long: {len(v)} > {MAX_DESCRIPTION_LENGTH}")
         return _sanitize_string(v)
 
     @field_validator("owner_note")
@@ -88,28 +82,20 @@ class SourceDocumentUserMetadata(BaseModel):
         if v is None:
             return None
         if len(v) > MAX_OWNER_NOTE_LENGTH:
-            raise ValueError(
-                f"owner_note too long: {len(v)} > {MAX_OWNER_NOTE_LENGTH}"
-            )
+            raise ValueError(f"owner_note too long: {len(v)} > {MAX_OWNER_NOTE_LENGTH}")
         return _sanitize_string(v)
 
     @field_validator("custom_labels")
     @classmethod
     def _validate_custom_labels(cls, v: dict[str, str]) -> dict[str, str]:
         if len(v) > MAX_CUSTOM_LABELS_COUNT:
-            raise ValueError(
-                f"Too many custom_labels: {len(v)} > {MAX_CUSTOM_LABELS_COUNT}"
-            )
+            raise ValueError(f"Too many custom_labels: {len(v)} > {MAX_CUSTOM_LABELS_COUNT}")
         sanitized: dict[str, str] = {}
         for key, value in v.items():
             if not key or len(key) > MAX_CUSTOM_LABEL_KEY_LENGTH:
-                raise ValueError(
-                    f"Invalid custom_label key length: {len(key)}"
-                )
+                raise ValueError(f"Invalid custom_label key length: {len(key)}")
             if len(value) > MAX_CUSTOM_LABEL_VALUE_LENGTH:
-                raise ValueError(
-                    f"custom_label value too long: {len(value)}"
-                )
+                raise ValueError(f"custom_label value too long: {len(value)}")
             sanitized[_sanitize_string(key)] = _sanitize_string(value)
         return sanitized
 
@@ -154,9 +140,7 @@ class SystemMetadataReadOnlyError(ValueError):
 
     def __init__(self, field_name: str) -> None:
         self.field_name = field_name
-        super().__init__(
-            f"Field {field_name!r} is system-managed and cannot be patched"
-        )
+        super().__init__(f"Field {field_name!r} is system-managed and cannot be patched")
 
 
 def reject_protected_fields(patch: dict[str, object]) -> None:

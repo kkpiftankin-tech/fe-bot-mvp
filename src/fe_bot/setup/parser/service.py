@@ -77,9 +77,7 @@ class DocumentParserService:
         self._registry.update(updated)
         return sections
 
-    def _dispatch(
-        self, document: SourceDocument, data: bytes
-    ) -> list[ParsedSection]:
+    def _dispatch(self, document: SourceDocument, data: bytes) -> list[ParsedSection]:
         kwargs = {
             "source_document_id": document.source_document_id,
             "setup_job_id": document.setup_job_id,

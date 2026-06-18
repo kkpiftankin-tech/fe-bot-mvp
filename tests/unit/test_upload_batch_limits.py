@@ -26,15 +26,11 @@ class TestBatchEmpty:
 
 class TestBatchCountLimit:
     def test_at_count_limit_ok(self) -> None:
-        validate_batch_limits(
-            files_count=MAX_BATCH_FILES_COUNT, total_size_bytes=100
-        )
+        validate_batch_limits(files_count=MAX_BATCH_FILES_COUNT, total_size_bytes=100)
 
     def test_above_count_limit_raises_batch_too_large(self) -> None:
         with pytest.raises(UploadValidationError) as exc:
-            validate_batch_limits(
-                files_count=MAX_BATCH_FILES_COUNT + 1, total_size_bytes=100
-            )
+            validate_batch_limits(files_count=MAX_BATCH_FILES_COUNT + 1, total_size_bytes=100)
         assert exc.value.code == UploadErrorCode.BATCH_TOO_LARGE
         assert exc.value.details["reason"] == "too_many_files"
         assert exc.value.details["files_count"] == MAX_BATCH_FILES_COUNT + 1
@@ -43,21 +39,14 @@ class TestBatchCountLimit:
 
 class TestBatchSizeLimit:
     def test_at_size_limit_ok(self) -> None:
-        validate_batch_limits(
-            files_count=1, total_size_bytes=MAX_TOTAL_BATCH_SIZE_BYTES
-        )
+        validate_batch_limits(files_count=1, total_size_bytes=MAX_TOTAL_BATCH_SIZE_BYTES)
 
     def test_above_size_limit_raises_batch_too_large(self) -> None:
         with pytest.raises(UploadValidationError) as exc:
-            validate_batch_limits(
-                files_count=1, total_size_bytes=MAX_TOTAL_BATCH_SIZE_BYTES + 1
-            )
+            validate_batch_limits(files_count=1, total_size_bytes=MAX_TOTAL_BATCH_SIZE_BYTES + 1)
         assert exc.value.code == UploadErrorCode.BATCH_TOO_LARGE
         assert exc.value.details["reason"] == "total_size_exceeded"
-        assert (
-            exc.value.details["total_size_bytes"]
-            == MAX_TOTAL_BATCH_SIZE_BYTES + 1
-        )
+        assert exc.value.details["total_size_bytes"] == MAX_TOTAL_BATCH_SIZE_BYTES + 1
 
     def test_count_check_comes_before_size_check(self) -> None:
         """Если batch и слишком большой по count, и по size — приоритет у count."""

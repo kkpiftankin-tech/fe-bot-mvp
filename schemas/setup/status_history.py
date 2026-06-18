@@ -195,8 +195,7 @@ class InvalidStatusTransitionError(ValueError):
         self.new_status = new_status
         old_repr = old_status.value if old_status else "None"
         super().__init__(
-            f"Invalid status transition for {source_document_id}: "
-            f"{old_repr} → {new_status.value}"
+            f"Invalid status transition for {source_document_id}: {old_repr} → {new_status.value}"
         )
 
 

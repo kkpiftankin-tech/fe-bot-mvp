@@ -104,9 +104,7 @@ class TestValidateRAGCardErrors:
     def test_doc_id_duplicate(self) -> None:
         card = _make_card()
         meta = _make_metadata()
-        report = validate_rag_card(
-            card, meta, known_doc_ids=["analytics.sensor_analytics_T.v1"]
-        )
+        report = validate_rag_card(card, meta, known_doc_ids=["analytics.sensor_analytics_T.v1"])
         codes = {e.code for e in report.errors}
         assert "DOC_ID_DUPLICATE" in codes
 

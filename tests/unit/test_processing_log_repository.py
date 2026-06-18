@@ -49,9 +49,7 @@ class TestAppendIdempotency:
     def test_idempotent_by_event_id(self) -> None:
         repo = InMemoryProcessingLogRepository()
         first = repo.append(_entry())
-        second = repo.append(
-            _entry(log_id="log_DIFFERENT", event_id="evt_001", message="other")
-        )
+        second = repo.append(_entry(log_id="log_DIFFERENT", event_id="evt_001", message="other"))
         assert second.processing_log_id == first.processing_log_id
         assert len(repo.list_for_document("src_001")) == 1
 
@@ -60,12 +58,8 @@ class TestFiltering:
     def test_filter_by_step(self) -> None:
         repo = InMemoryProcessingLogRepository()
         repo.append(_entry(log_id="l1", event_id="e1", step=ProcessingLogStep.PARSING))
-        repo.append(
-            _entry(log_id="l2", event_id="e2", step=ProcessingLogStep.RAG_CARD_GENERATION)
-        )
-        parsed = repo.list_for_document(
-            "src_001", step=ProcessingLogStep.PARSING
-        )
+        repo.append(_entry(log_id="l2", event_id="e2", step=ProcessingLogStep.RAG_CARD_GENERATION))
+        parsed = repo.list_for_document("src_001", step=ProcessingLogStep.PARSING)
         assert len(parsed) == 1
         assert parsed[0].processing_log_id == "l1"
 
@@ -74,13 +68,13 @@ class TestFiltering:
         repo.append(_entry(log_id="l1", event_id="e1", level=ProcessingLogLevel.INFO))
         repo.append(
             _entry(
-                log_id="l2", event_id="e2", level=ProcessingLogLevel.ERROR,
+                log_id="l2",
+                event_id="e2",
+                level=ProcessingLogLevel.ERROR,
                 message="boom",
             )
         )
-        errors = repo.list_for_document(
-            "src_001", level=ProcessingLogLevel.ERROR
-        )
+        errors = repo.list_for_document("src_001", level=ProcessingLogLevel.ERROR)
         assert len(errors) == 1
         assert errors[0].message == "boom"
 
@@ -88,19 +82,24 @@ class TestFiltering:
         repo = InMemoryProcessingLogRepository()
         repo.append(
             _entry(
-                log_id="l1", event_id="e1",
-                step=ProcessingLogStep.PARSING, level=ProcessingLogLevel.ERROR
+                log_id="l1",
+                event_id="e1",
+                step=ProcessingLogStep.PARSING,
+                level=ProcessingLogLevel.ERROR,
             )
         )
         repo.append(
             _entry(
-                log_id="l2", event_id="e2",
-                step=ProcessingLogStep.PARSING, level=ProcessingLogLevel.INFO
+                log_id="l2",
+                event_id="e2",
+                step=ProcessingLogStep.PARSING,
+                level=ProcessingLogLevel.INFO,
             )
         )
         repo.append(
             _entry(
-                log_id="l3", event_id="e3",
+                log_id="l3",
+                event_id="e3",
                 step=ProcessingLogStep.RAG_CARD_GENERATION,
                 level=ProcessingLogLevel.ERROR,
             )
@@ -126,9 +125,7 @@ class TestJobScope:
     def test_list_for_job_filter_by_level(self) -> None:
         repo = InMemoryProcessingLogRepository()
         repo.append(_entry(source_id="src_A", event_id="e1"))
-        repo.append(
-            _entry(source_id="src_B", event_id="e2", level=ProcessingLogLevel.ERROR)
-        )
+        repo.append(_entry(source_id="src_B", event_id="e2", level=ProcessingLogLevel.ERROR))
         errors = repo.list_for_job("setup_001", level=ProcessingLogLevel.ERROR)
         assert len(errors) == 1
         assert errors[0].source_document_id == "src_B"

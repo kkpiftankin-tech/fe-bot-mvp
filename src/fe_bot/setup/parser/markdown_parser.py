@@ -84,9 +84,7 @@ def _strip_front_matter(text: str) -> tuple[dict[str, object], str, int]:
     try:
         _, fm_block, body = text.split("---\n", 2)
     except ValueError as exc:
-        raise ParseFailedError(
-            "Malformed YAML front matter (missing closing '---')"
-        ) from exc
+        raise ParseFailedError("Malformed YAML front matter (missing closing '---')") from exc
     try:
         parsed = yaml.safe_load(fm_block) or {}
     except yaml.YAMLError as exc:
@@ -137,9 +135,11 @@ def parse_markdown(
             ParsedSection(
                 section_id=f"sec_{uuid.uuid4().hex[:12]}",
                 source_document_id=source_document_id,
-                setup_job_id=setup_job_id,
+                parse_job_id=setup_job_id,  # SETUP-04: rename of setup_job_id
+                parent_section_id=None,
+                classification_method="rule_based",
                 title=filename,
-                section_path=[],
+                heading_path=[],
                 section_type=SectionType.OTHER,
                 raw_text=raw_body,
                 normalized_text=normalized or raw_body,
@@ -166,9 +166,11 @@ def parse_markdown(
             ParsedSection(
                 section_id=f"sec_{uuid.uuid4().hex[:12]}",
                 source_document_id=source_document_id,
-                setup_job_id=setup_job_id,
+                parse_job_id=setup_job_id,  # SETUP-04: rename of setup_job_id
+                parent_section_id=None,
+                classification_method="rule_based",
                 title=section.title,
-                section_path=section_path,
+                heading_path=section_path,
                 section_type=_detect_section_type(section.title),
                 raw_text=raw_body,
                 normalized_text=normalized or raw_body,

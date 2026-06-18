@@ -47,9 +47,7 @@ _BATCH_TRANSITIONS: dict[UploadBatchStatus, frozenset[UploadBatchStatus]] = {
 
 
 class InvalidBatchTransitionError(ValueError):
-    def __init__(
-        self, from_status: UploadBatchStatus, to_status: UploadBatchStatus
-    ) -> None:
+    def __init__(self, from_status: UploadBatchStatus, to_status: UploadBatchStatus) -> None:
         self.from_status = from_status
         self.to_status = to_status
         super().__init__(
@@ -84,9 +82,7 @@ class UploadBatch(BaseModel):
 
     @model_validator(mode="after")
     def _counters_consistent(self) -> UploadBatch:
-        total_processed = (
-            self.files_uploaded + self.files_rejected + self.duplicates_detected
-        )
+        total_processed = self.files_uploaded + self.files_rejected + self.duplicates_detected
         if total_processed > self.files_total:
             raise ValueError(
                 f"Counters inconsistent: uploaded({self.files_uploaded}) + "
@@ -104,13 +100,9 @@ class UploadBatch(BaseModel):
             UploadBatchStatus.FAILED,
         }
         if self.finished_at is not None and not is_terminal:
-            raise ValueError(
-                f"finished_at is set but status {self.status.value!r} is not terminal"
-            )
+            raise ValueError(f"finished_at is set but status {self.status.value!r} is not terminal")
         if self.finished_at is None and is_terminal:
-            raise ValueError(
-                f"status {self.status.value!r} is terminal but finished_at is None"
-            )
+            raise ValueError(f"status {self.status.value!r} is terminal but finished_at is None")
         return self
 
     def can_transition_to(self, new_status: UploadBatchStatus) -> bool:
@@ -133,13 +125,9 @@ class UploadBatch(BaseModel):
         # model_validator валидируется на каждом __setattr__; чтобы избежать
         # промежуточного невалидного состояния, конструируем новые значения
         # через __dict__ + повторный model_validate.
-        new_finished_at = finished_at or (
-            datetime.now(tz=UTC) if is_terminal else None
-        )
+        new_finished_at = finished_at or (datetime.now(tz=UTC) if is_terminal else None)
         # Update via model_copy + re-validate, чтобы инварианты держались.
-        updated = self.model_copy(
-            update={"status": new_status, "finished_at": new_finished_at}
-        )
+        updated = self.model_copy(update={"status": new_status, "finished_at": new_finished_at})
         # Перенесём поля обратно в self без повторной валидации каждого присвоения.
         object.__setattr__(self, "status", updated.status)
         object.__setattr__(self, "finished_at", updated.finished_at)

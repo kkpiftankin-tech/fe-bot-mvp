@@ -32,9 +32,11 @@ def parse_plain_text(
         ParsedSection(
             section_id=f"sec_{uuid.uuid4().hex[:12]}",
             source_document_id=source_document_id,
-            setup_job_id=setup_job_id,
+            parse_job_id=setup_job_id,  # SETUP-04: rename
+            parent_section_id=None,
+            classification_method="rule_based",
             title=filename,
-            section_path=[],
+            heading_path=[],
             section_type=SectionType.OTHER,
             raw_text=text,
             normalized_text=text.strip(),
@@ -91,9 +93,11 @@ def parse_csv(
         ParsedSection(
             section_id=f"sec_{uuid.uuid4().hex[:12]}",
             source_document_id=source_document_id,
-            setup_job_id=setup_job_id,
+            parse_job_id=setup_job_id,  # SETUP-04: rename
+            parent_section_id=None,
+            classification_method="rule_based",
             title=filename,
-            section_path=[],
+            heading_path=[],
             section_type=SectionType.SCHEMA,
             raw_text=raw_text,
             normalized_text=raw_text,
@@ -149,9 +153,11 @@ def parse_json(
         ParsedSection(
             section_id=f"sec_{uuid.uuid4().hex[:12]}",
             source_document_id=source_document_id,
-            setup_job_id=setup_job_id,
+            parse_job_id=setup_job_id,  # SETUP-04: rename
+            parent_section_id=None,
+            classification_method="rule_based",
             title=filename,
-            section_path=[],
+            heading_path=[],
             section_type=SectionType.SCHEMA,
             raw_text=truncated,
             normalized_text=truncated,
@@ -170,10 +176,9 @@ def parse_json(
 
 # ---------- Stubs (T-S01-018b) ----------
 
+
 def parse_pdf(**_kwargs: object) -> list[ParsedSection]:
-    raise UnsupportedFormatError(
-        "PDF parsing not yet implemented (T-S01-018b, requires pypdf)"
-    )
+    raise UnsupportedFormatError("PDF parsing not yet implemented (T-S01-018b, requires pypdf)")
 
 
 def parse_docx(**_kwargs: object) -> list[ParsedSection]:
@@ -183,6 +188,4 @@ def parse_docx(**_kwargs: object) -> list[ParsedSection]:
 
 
 def parse_xlsx(**_kwargs: object) -> list[ParsedSection]:
-    raise UnsupportedFormatError(
-        "XLSX parsing not yet implemented (T-S01-018b, requires openpyxl)"
-    )
+    raise UnsupportedFormatError("XLSX parsing not yet implemented (T-S01-018b, requires openpyxl)")

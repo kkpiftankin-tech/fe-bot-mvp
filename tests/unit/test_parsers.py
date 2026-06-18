@@ -29,6 +29,7 @@ pytestmark = pytest.mark.unit
 
 # ---------- text_parsers ----------
 
+
 class TestPlainText:
     def test_simple(self) -> None:
         sections = parse_plain_text(
@@ -41,17 +42,13 @@ class TestPlainText:
 
     def test_empty(self) -> None:
         with pytest.raises(ParseFailedError):
-            parse_plain_text(
-                source_document_id="src_1", setup_job_id="setup_1", text="   "
-            )
+            parse_plain_text(source_document_id="src_1", setup_job_id="setup_1", text="   ")
 
 
 class TestCSV:
     def test_simple(self) -> None:
         data = b"name,age\nAlice,30\nBob,25\n"
-        sections = parse_csv(
-            source_document_id="src_1", setup_job_id="setup_1", data=data
-        )
+        sections = parse_csv(source_document_id="src_1", setup_job_id="setup_1", data=data)
         assert sections[0].section_type == SectionType.SCHEMA
         assert sections[0].metadata["columns"] == ["name", "age"]
         assert sections[0].metadata["row_count"] == 2
@@ -69,18 +66,14 @@ class TestCSV:
 class TestJSON:
     def test_object(self) -> None:
         data = b'{"a": 1, "b": [1, 2, 3]}'
-        sections = parse_json(
-            source_document_id="src_1", setup_job_id="setup_1", data=data
-        )
+        sections = parse_json(source_document_id="src_1", setup_job_id="setup_1", data=data)
         assert sections[0].section_type == SectionType.SCHEMA
         assert sections[0].metadata["kind"] == "object"
         assert sections[0].metadata["top_level_keys"] == ["a", "b"]
 
     def test_array(self) -> None:
         data = b"[1, 2, 3]"
-        sections = parse_json(
-            source_document_id="src_1", setup_job_id="setup_1", data=data
-        )
+        sections = parse_json(source_document_id="src_1", setup_job_id="setup_1", data=data)
         assert sections[0].metadata["kind"] == "array"
 
     def test_invalid_json(self) -> None:
@@ -108,6 +101,7 @@ class TestStubs:
 
 
 # ---------- DocumentParserService ----------
+
 
 def _make_doc(
     content_type: str = "text/markdown",
@@ -138,9 +132,7 @@ def parser_setup() -> tuple[DocumentParserService, InMemoryArtifactStorage, InMe
 class TestParserDispatcher:
     def test_dispatches_markdown(
         self,
-        parser_setup: tuple[
-            DocumentParserService, InMemoryArtifactStorage, InMemorySourceRegistry
-        ],
+        parser_setup: tuple[DocumentParserService, InMemoryArtifactStorage, InMemorySourceRegistry],
     ) -> None:
         svc, storage, registry = parser_setup
         doc = _make_doc()
@@ -162,9 +154,7 @@ class TestParserDispatcher:
 
     def test_dispatches_json(
         self,
-        parser_setup: tuple[
-            DocumentParserService, InMemoryArtifactStorage, InMemorySourceRegistry
-        ],
+        parser_setup: tuple[DocumentParserService, InMemoryArtifactStorage, InMemorySourceRegistry],
     ) -> None:
         svc, storage, registry = parser_setup
         doc = _make_doc(content_type="application/json", filename="d.json")
@@ -181,9 +171,7 @@ class TestParserDispatcher:
 
     def test_unsupported_format_marks_failed(
         self,
-        parser_setup: tuple[
-            DocumentParserService, InMemoryArtifactStorage, InMemorySourceRegistry
-        ],
+        parser_setup: tuple[DocumentParserService, InMemoryArtifactStorage, InMemorySourceRegistry],
     ) -> None:
         svc, storage, registry = parser_setup
         doc = _make_doc(content_type="application/pdf", filename="d.pdf")
@@ -204,9 +192,7 @@ class TestParserDispatcher:
 
     def test_parse_failed_marks_failed(
         self,
-        parser_setup: tuple[
-            DocumentParserService, InMemoryArtifactStorage, InMemorySourceRegistry
-        ],
+        parser_setup: tuple[DocumentParserService, InMemoryArtifactStorage, InMemorySourceRegistry],
     ) -> None:
         svc, storage, registry = parser_setup
         doc = _make_doc(content_type="application/json", filename="bad.json")

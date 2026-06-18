@@ -59,9 +59,7 @@ class TestLinkAndDedup:
         """
         repo = InMemoryLineageRepository()
         first = repo.link(_rel(event_id="evt_A"))
-        second = repo.link(
-            _rel(lin_id="lin_OTHER", event_id="evt_B")
-        )
+        second = repo.link(_rel(lin_id="lin_OTHER", event_id="evt_B"))
         assert second.lineage_id == first.lineage_id
         assert len(repo.list_for_source("src_001")) == 1
 
@@ -86,9 +84,7 @@ class TestListAndReverseLookup:
                 relation_type=LineageRelationType.PARSED_FROM,
             )
         )
-        cards = repo.list_for_source(
-            "src_001", target_type=LineageTargetType.RAG_CARD
-        )
+        cards = repo.list_for_source("src_001", target_type=LineageTargetType.RAG_CARD)
         assert len(cards) == 1
         assert cards[0].lineage_id == "l1"
 

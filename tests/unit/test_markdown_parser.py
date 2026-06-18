@@ -81,9 +81,7 @@ class TestYamlFrontMatter:
     def test_with_front_matter(self) -> None:
         text = "---\ntitle: My Doc\nversion: 1.0\n---\n\n# Title\n\nbody"
         sections = _parse(text)
-        assert sections[0].metadata == {
-            "front_matter": {"title": "My Doc", "version": 1.0}
-        }
+        assert sections[0].metadata == {"front_matter": {"title": "My Doc", "version": 1.0}}
         # start_offset должен учитывать длину front matter
         assert sections[0].start_offset is not None
         assert sections[0].start_offset > 0

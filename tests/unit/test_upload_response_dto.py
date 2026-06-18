@@ -149,9 +149,6 @@ class TestUploadDocumentsResponseV2:
             job_status=SetupJobStatus.FILES_UPLOADED,
         )
         # Caller-level consistency check (не enforced DTO).
-        assert (
-            resp.summary is not None
-            and resp.summary.files_uploaded == len(resp.uploaded)
-        )
+        assert resp.summary is not None and resp.summary.files_uploaded == len(resp.uploaded)
         assert resp.summary.files_rejected == len(resp.errors)
         assert resp.summary.duplicates_detected == len(resp.skipped_duplicates)

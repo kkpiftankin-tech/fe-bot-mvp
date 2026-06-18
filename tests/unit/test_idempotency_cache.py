@@ -75,9 +75,7 @@ class TestTTL:
 
 class TestCacheKey:
     def test_make_cache_key_combines_job_and_request(self) -> None:
-        assert (
-            make_cache_key("setup_abc", "req_xyz") == "setup_abc:req_xyz"
-        )
+        assert make_cache_key("setup_abc", "req_xyz") == "setup_abc:req_xyz"
 
     def test_different_jobs_same_request_id_different_keys(self) -> None:
         k1 = make_cache_key("setup_a", "req_x")

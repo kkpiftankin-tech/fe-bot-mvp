@@ -25,9 +25,7 @@ def svc(log: InMemoryAuditLog) -> AuditService:
 
 
 class TestRecord:
-    def test_record_creates_event(
-        self, svc: AuditService, log: InMemoryAuditLog
-    ) -> None:
+    def test_record_creates_event(self, svc: AuditService, log: InMemoryAuditLog) -> None:
         event = svc.record(
             actor_id="u1",
             action=AuditAction.JOB_CREATED,
@@ -77,9 +75,7 @@ class TestRecord:
 
 
 class TestQuery:
-    def test_list_for_job_filters(
-        self, svc: AuditService, log: InMemoryAuditLog
-    ) -> None:
+    def test_list_for_job_filters(self, svc: AuditService, log: InMemoryAuditLog) -> None:
         svc.record(
             actor_id="u1",
             action=AuditAction.JOB_CREATED,
@@ -107,9 +103,7 @@ class TestQuery:
         b_events = log.list_for_job("b")
         assert len(b_events) == 1
 
-    def test_list_for_actor_filters(
-        self, svc: AuditService, log: InMemoryAuditLog
-    ) -> None:
+    def test_list_for_actor_filters(self, svc: AuditService, log: InMemoryAuditLog) -> None:
         svc.record(
             actor_id="alice",
             action=AuditAction.CARD_REVIEW_APPROVED,
@@ -143,9 +137,7 @@ class TestQuery:
 
 
 class TestImmutability:
-    def test_returned_events_are_copies(
-        self, svc: AuditService, log: InMemoryAuditLog
-    ) -> None:
+    def test_returned_events_are_copies(self, svc: AuditService, log: InMemoryAuditLog) -> None:
         svc.record(
             actor_id="u1",
             action=AuditAction.JOB_CREATED,

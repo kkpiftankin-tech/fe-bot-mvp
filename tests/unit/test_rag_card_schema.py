@@ -27,6 +27,7 @@ pytestmark = pytest.mark.unit
 
 # ---------------- ParsedSection ----------------
 
+
 def _make_section(**overrides: object) -> ParsedSection:
     defaults: dict[str, object] = {
         "section_id": "sec_001",
@@ -70,6 +71,7 @@ class TestParsedSection:
 
 
 # ---------------- RAGMetadata ----------------
+
 
 def _make_metadata(**overrides: object) -> RAGMetadata:
     defaults: dict[str, object] = {
@@ -135,6 +137,7 @@ class TestRAGMetadata:
 
 
 # ---------------- RAGCard ----------------
+
 
 def _make_card(**overrides: object) -> RAGCard:
     defaults: dict[str, object] = {

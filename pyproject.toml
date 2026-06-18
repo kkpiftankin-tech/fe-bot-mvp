@@ -23,6 +23,10 @@ dependencies = [
   "typing-extensions>=4.12,<5.0",
   "pyyaml>=6.0,<7.0",
   "python-multipart>=0.0.9,<1.0",
+  # SETUP-04: парсеры документов
+  "pypdf>=5.0,<7.0",
+  "python-docx>=1.1,<2.0",
+  "openpyxl>=3.1,<4.0",
 ]
 
 [project.optional-dependencies]
@@ -77,3 +81,9 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 python_version = "3.12"
 strict = true
 files = ["src", "schemas", "validators"]
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = false

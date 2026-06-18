@@ -38,9 +38,7 @@ class TestUserMetadataValidation:
 
     def test_too_many_tags_rejected(self) -> None:
         with pytest.raises(ValidationError):
-            SourceDocumentUserMetadata(
-                tags=["tag" + str(i) for i in range(MAX_TAGS_COUNT + 1)]
-            )
+            SourceDocumentUserMetadata(tags=["tag" + str(i) for i in range(MAX_TAGS_COUNT + 1)])
 
     def test_tag_too_long_rejected(self) -> None:
         with pytest.raises(ValidationError):
@@ -91,9 +89,7 @@ class TestSanitization:
         assert "&quot;" in m.owner_note  # type: ignore[operator]
 
     def test_custom_label_html_escaped(self) -> None:
-        m = SourceDocumentUserMetadata(
-            custom_labels={"key": "<svg onload=alert(1)>"}
-        )
+        m = SourceDocumentUserMetadata(custom_labels={"key": "<svg onload=alert(1)>"})
         assert "<svg" not in m.custom_labels["key"]
 
     def test_control_chars_stripped_from_description(self) -> None:
@@ -151,5 +147,6 @@ class TestUpdateSourceMetadataRequest:
     def test_extra_fields_forbidden(self) -> None:
         with pytest.raises(ValidationError):
             UpdateSourceMetadataRequest(
-                tags=[], hacker_field="evil"  # type: ignore[call-arg]
+                tags=[],
+                hacker_field="evil",  # type: ignore[call-arg]
             )

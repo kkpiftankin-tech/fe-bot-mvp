@@ -6,6 +6,10 @@ Roll-up матрица: какие docs, контракты, промпты, в�
 
 | Feature | Use Cases | Agents | Contracts | Prompts | Validators | Tests | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| SETUP-01 | docs/02-system/features/SETUP-01-*.md | — | schemas/setup/*.py | — | validators/ | tests/unit/ tests/integration/ | covered |
+| SETUP-02 | docs/02-system/features/SETUP-02-*.md | — | schemas/setup/upload_*.py | — | — | tests/unit/ tests/integration/ | covered |
+| SETUP-03 | docs/02-system/features/SETUP-03-*.md | — | schemas/setup/status_history.py schemas/setup/lineage.py | — | — | tests/unit/ tests/integration/ | covered |
+| SETUP-04 | docs/02-system/features/SETUP-04-*.md | — | schemas/setup/parse_job.py schemas/setup/parsed_section.py schemas/setup/parse_report.py | — | — | tests/unit/ tests/integration/ tests/component/ | in-progress |
 
 ## Значения статусов
 

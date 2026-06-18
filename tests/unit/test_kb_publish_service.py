@@ -29,9 +29,7 @@ def svc(repo: InMemoryKBRepository) -> KBPublishService:
 
 
 class TestCreateDraft:
-    def test_create_draft_returns_kb_in_draft_status(
-        self, svc: KBPublishService
-    ) -> None:
+    def test_create_draft_returns_kb_in_draft_status(self, svc: KBPublishService) -> None:
         kb = svc.create_draft(
             setup_job_id="setup_1",
             index_version="idx_1",
@@ -45,9 +43,7 @@ class TestCreateDraft:
 
 
 class TestLifecycle:
-    def test_full_happy_path(
-        self, svc: KBPublishService, repo: InMemoryKBRepository
-    ) -> None:
+    def test_full_happy_path(self, svc: KBPublishService, repo: InMemoryKBRepository) -> None:
         kb = svc.create_draft(
             setup_job_id="setup_1",
             index_version="idx_1",
@@ -111,9 +107,7 @@ class TestErrors:
         with pytest.raises(PublishNotReadyError):
             svc.activate(kb.knowledge_base_version, published_by="admin")
 
-    def test_mark_ready_from_draft_invalid_transition(
-        self, svc: KBPublishService
-    ) -> None:
+    def test_mark_ready_from_draft_invalid_transition(self, svc: KBPublishService) -> None:
         kb = svc.create_draft(
             setup_job_id="s", index_version="idx", rag_card_count=1, chunk_count=1
         )
@@ -138,22 +132,14 @@ class TestQueries:
     def test_list_for_setup_job_returns_multiple(
         self, svc: KBPublishService, repo: InMemoryKBRepository
     ) -> None:
-        svc.create_draft(
-            setup_job_id="s1", index_version="i", rag_card_count=1, chunk_count=1
-        )
-        svc.create_draft(
-            setup_job_id="s1", index_version="i", rag_card_count=1, chunk_count=1
-        )
-        svc.create_draft(
-            setup_job_id="s2", index_version="i", rag_card_count=1, chunk_count=1
-        )
+        svc.create_draft(setup_job_id="s1", index_version="i", rag_card_count=1, chunk_count=1)
+        svc.create_draft(setup_job_id="s1", index_version="i", rag_card_count=1, chunk_count=1)
+        svc.create_draft(setup_job_id="s2", index_version="i", rag_card_count=1, chunk_count=1)
         assert len(repo.list_for_setup_job("s1")) == 2
         assert len(repo.list_for_setup_job("s2")) == 1
 
     def test_get_active_for_setup_job_no_active(
         self, svc: KBPublishService, repo: InMemoryKBRepository
     ) -> None:
-        svc.create_draft(
-            setup_job_id="s1", index_version="i", rag_card_count=1, chunk_count=1
-        )
+        svc.create_draft(setup_job_id="s1", index_version="i", rag_card_count=1, chunk_count=1)
         assert repo.get_active_for_setup_job("s1") is None

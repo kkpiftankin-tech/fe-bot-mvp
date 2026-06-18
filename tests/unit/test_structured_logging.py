@@ -37,9 +37,7 @@ def logger_with_buffer() -> tuple[logging.Logger, StringIO]:
 
 
 class TestJSONFormatter:
-    def test_basic_fields(
-        self, logger_with_buffer: tuple[logging.Logger, StringIO]
-    ) -> None:
+    def test_basic_fields(self, logger_with_buffer: tuple[logging.Logger, StringIO]) -> None:
         logger, buf = logger_with_buffer
         logger.info("hello world")
         record = json.loads(buf.getvalue().strip())
@@ -92,6 +90,7 @@ class TestJSONFormatter:
         self, logger_with_buffer: tuple[logging.Logger, StringIO]
     ) -> None:
         logger, buf = logger_with_buffer
+
         # Объект с custom __str__ — не сериализуется напрямую.
         class _Custom:
             def __repr__(self) -> str:

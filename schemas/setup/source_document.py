@@ -93,9 +93,7 @@ class SourceDocument(BaseModel):
     @classmethod
     def _size_within_limit(cls, v: int) -> int:
         if v > MAX_FILE_SIZE_BYTES:
-            raise ValueError(
-                f"File size {v} bytes exceeds limit {MAX_FILE_SIZE_BYTES} bytes"
-            )
+            raise ValueError(f"File size {v} bytes exceeds limit {MAX_FILE_SIZE_BYTES} bytes")
         return v
 
     @field_validator("checksum")
@@ -106,4 +104,4 @@ class SourceDocument(BaseModel):
                 "checksum must be SHA-256 (64 hex chars, optionally prefixed with 'sha256:')"
             )
         # Нормализуем к виду без префикса.
-        return v[len("sha256:"):] if v.startswith("sha256:") else v
+        return v[len("sha256:") :] if v.startswith("sha256:") else v

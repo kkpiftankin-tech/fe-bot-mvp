@@ -92,9 +92,7 @@ class TestUpdateStatus:
         assert history[0].old_status == SourceDocumentStatus.UPLOADED
         assert history[0].new_status == SourceDocumentStatus.REGISTERED
 
-    def test_unknown_document_raises(
-        self, svc: SourceLifecycleService
-    ) -> None:
+    def test_unknown_document_raises(self, svc: SourceLifecycleService) -> None:
         with pytest.raises(SourceDocumentNotFoundError):
             svc.update_status(
                 source_document_id="nope",
@@ -102,9 +100,7 @@ class TestUpdateStatus:
                 event_id="evt_001",
             )
 
-    def test_invalid_transition_rejected(
-        self, svc_with_doc: SourceLifecycleService
-    ) -> None:
+    def test_invalid_transition_rejected(self, svc_with_doc: SourceLifecycleService) -> None:
         with pytest.raises(InvalidStatusTransitionError):
             svc_with_doc.update_status(
                 source_document_id="src_001",
@@ -112,9 +108,7 @@ class TestUpdateStatus:
                 event_id="evt_001",
             )
 
-    def test_idempotent_by_event_id(
-        self, svc_with_doc: SourceLifecycleService
-    ) -> None:
+    def test_idempotent_by_event_id(self, svc_with_doc: SourceLifecycleService) -> None:
         """Повторный update_status с тем же event_id — no-op."""
         first = svc_with_doc.update_status(
             source_document_id="src_001",
@@ -145,9 +139,7 @@ class TestUpdateStatus:
         assert len(history) == 1
         assert history[0].old_status == history[0].new_status
 
-    def test_multi_step_lifecycle(
-        self, svc_with_doc: SourceLifecycleService
-    ) -> None:
+    def test_multi_step_lifecycle(self, svc_with_doc: SourceLifecycleService) -> None:
         """Полный путь: UPLOADED → REGISTERED → PARSING → PARSED."""
         for i, (status, evt) in enumerate(
             [
@@ -171,9 +163,7 @@ class TestUpdateStatus:
         final_doc = svc_with_doc._registry.get("src_001")  # type: ignore[attr-defined]
         assert final_doc.status == SourceDocumentStatus.PARSED
 
-    def test_changed_by_type_persists(
-        self, svc_with_doc: SourceLifecycleService
-    ) -> None:
+    def test_changed_by_type_persists(self, svc_with_doc: SourceLifecycleService) -> None:
         svc_with_doc.update_status(
             source_document_id="src_001",
             new_status=SourceDocumentStatus.REGISTERED,
@@ -236,9 +226,7 @@ class TestProcessingLog:
 
 
 class TestLinkArtifact:
-    def test_link_artifact_creates_relation(
-        self, svc_with_doc: SourceLifecycleService
-    ) -> None:
+    def test_link_artifact_creates_relation(self, svc_with_doc: SourceLifecycleService) -> None:
         rel = svc_with_doc.link_artifact(
             source_document_id="src_001",
             target_type=LineageTargetType.RAG_CARD,
@@ -249,9 +237,7 @@ class TestLinkArtifact:
         )
         assert rel.target_id == "card_v1"
 
-    def test_link_artifact_dangling_source_raises(
-        self, svc: SourceLifecycleService
-    ) -> None:
+    def test_link_artifact_dangling_source_raises(self, svc: SourceLifecycleService) -> None:
         """Source должен существовать."""
         with pytest.raises(SourceDocumentNotFoundError):
             svc.link_artifact(
@@ -288,16 +274,12 @@ class TestLinkArtifact:
 
 
 class TestGetLineage:
-    def test_get_lineage_empty(
-        self, svc_with_doc: SourceLifecycleService
-    ) -> None:
+    def test_get_lineage_empty(self, svc_with_doc: SourceLifecycleService) -> None:
         relations, counters = svc_with_doc.get_lineage("src_001")
         assert relations == []
         assert counters.rag_cards_count == 0  # type: ignore[attr-defined]
 
-    def test_get_lineage_with_counters(
-        self, svc_with_doc: SourceLifecycleService
-    ) -> None:
+    def test_get_lineage_with_counters(self, svc_with_doc: SourceLifecycleService) -> None:
         svc_with_doc.link_artifact(
             source_document_id="src_001",
             target_type=LineageTargetType.RAG_CARD,
@@ -319,9 +301,7 @@ class TestGetLineage:
         assert counters.rag_cards_count == 1  # type: ignore[attr-defined]
         assert counters.parsed_sections_count == 1  # type: ignore[attr-defined]
 
-    def test_get_lineage_unknown_source_raises(
-        self, svc: SourceLifecycleService
-    ) -> None:
+    def test_get_lineage_unknown_source_raises(self, svc: SourceLifecycleService) -> None:
         with pytest.raises(SourceDocumentNotFoundError):
             svc.get_lineage("nope")
 
@@ -347,9 +327,7 @@ class TestUpdateUserMetadata:
         assert updated.metadata["user"]["description"] == "Тестовое описание"
         assert updated.metadata["user"]["custom_labels"] == {"prio": "high"}
 
-    def test_partial_patch_preserves_others(
-        self, svc_with_doc: SourceLifecycleService
-    ) -> None:
+    def test_partial_patch_preserves_others(self, svc_with_doc: SourceLifecycleService) -> None:
         svc_with_doc.update_user_metadata(
             source_document_id="src_001",
             patch=UpdateSourceMetadataRequest(
@@ -367,9 +345,7 @@ class TestUpdateUserMetadata:
         assert updated.metadata["user"]["tags"] == ["new"]
         assert updated.metadata["user"]["description"] == "initial desc"
 
-    def test_unknown_document_raises(
-        self, svc: SourceLifecycleService
-    ) -> None:
+    def test_unknown_document_raises(self, svc: SourceLifecycleService) -> None:
         with pytest.raises(SourceDocumentNotFoundError):
             svc.update_user_metadata(
                 source_document_id="nope",
@@ -377,9 +353,7 @@ class TestUpdateUserMetadata:
                 updated_by="user_001",
             )
 
-    def test_writes_processing_log_audit(
-        self, svc_with_doc: SourceLifecycleService
-    ) -> None:
+    def test_writes_processing_log_audit(self, svc_with_doc: SourceLifecycleService) -> None:
         svc_with_doc.update_user_metadata(
             source_document_id="src_001",
             patch=UpdateSourceMetadataRequest(tags=["x"]),
@@ -391,9 +365,7 @@ class TestUpdateUserMetadata:
         assert len(logs) == 1
         assert "user_xyz" in logs[0].message
 
-    def test_protected_field_in_dict_rejected(
-        self, svc_with_doc: SourceLifecycleService
-    ) -> None:
+    def test_protected_field_in_dict_rejected(self, svc_with_doc: SourceLifecycleService) -> None:
         """Прямой вызов с patch_dict содержащим protected — на нашем уровне
         Pydantic уже их фильтрует через extra='forbid', но если caller
         обходит схему, защита остаётся."""
@@ -409,9 +381,7 @@ class TestUpdateUserMetadata:
                 checksum="evil",  # type: ignore[call-arg]
             )
 
-    def test_xss_sanitized_via_schema(
-        self, svc_with_doc: SourceLifecycleService
-    ) -> None:
+    def test_xss_sanitized_via_schema(self, svc_with_doc: SourceLifecycleService) -> None:
         updated = svc_with_doc.update_user_metadata(
             source_document_id="src_001",
             patch=UpdateSourceMetadataRequest(
@@ -423,9 +393,7 @@ class TestUpdateUserMetadata:
         assert "<script>" not in desc
         assert "&lt;" in desc
 
-    def test_event_id_override(
-        self, svc_with_doc: SourceLifecycleService
-    ) -> None:
+    def test_event_id_override(self, svc_with_doc: SourceLifecycleService) -> None:
         """Custom event_id для idempotency-protected log entry."""
         svc_with_doc.update_user_metadata(
             source_document_id="src_001",

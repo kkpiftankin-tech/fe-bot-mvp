@@ -92,9 +92,7 @@ class TestTransitions:
 
     def test_terminal_cannot_transition(self) -> None:
         batch = _make_batch()
-        batch.transition_to(
-            UploadBatchStatus.PARTIALLY_COMPLETED, finished_at=_now()
-        )
+        batch.transition_to(UploadBatchStatus.PARTIALLY_COMPLETED, finished_at=_now())
         assert not batch.can_transition_to(UploadBatchStatus.COMPLETED)
         with pytest.raises(InvalidBatchTransitionError):
             batch.transition_to(UploadBatchStatus.COMPLETED)
@@ -121,9 +119,7 @@ class TestFinishedAtConsistency:
 
     def test_finished_at_requires_terminal_status(self) -> None:
         with pytest.raises(ValueError, match="finished_at"):
-            _make_batch(
-                status=UploadBatchStatus.IN_PROGRESS, finished_at=_now()
-            )
+            _make_batch(status=UploadBatchStatus.IN_PROGRESS, finished_at=_now())
 
     def test_completed_with_finished_at_ok(self) -> None:
         batch = _make_batch(

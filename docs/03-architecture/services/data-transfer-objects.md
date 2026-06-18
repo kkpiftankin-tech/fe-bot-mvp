@@ -124,10 +124,51 @@
 
 ### DTO-10. ParsedSectionDTO
 
-- **Назначение.** Смысловая секция исходного документа после парсинга.
-- **Основное хранилище.** PostgreSQL; крупные тексты — Object Storage.
-- **Использующие сервисы.** Document Parser Service (SVC-07), Source Registry Service (SVC-06), RAG Card Generator (SVC-09), Analytics Service (SVC-35), Audit Service (SVC-36).
-- **Ключевые поля.** `section_id`, `source_document_id`, `setup_job_id`, `title`, `section_path[]`, `section_type`, `raw_text`, `normalized_text`, `start_offset`, `end_offset`, `confidence`, `created_at`, `metadata`.
+- **Назначение.** Смысловая секция исходного документа после парсинга. Расширено в SETUP-04: добавлены `parse_job_id`, `section_index`, `parent_section_id`, `heading_path`, `section_status`, `content_hash`, `classification_method`, `structural_payload`.
+- **Основное хранилище.** PostgreSQL (таблица `parsed_sections`); крупные тексты — Object Storage.
+- **Producer.** SVC-07 Document Parser Service.
+- **Consumers.** SVC-06 Source Registry, SVC-09 RAG Card Generator, SVC-08 Metadata Validation Service, SVC-35 Analytics Service, SVC-36 Audit Service.
+- **Ключевые поля.** `section_id`, `parse_job_id`, `source_document_id`, `section_index`, `parent_section_id`, `heading_path[]`, `title`, `section_type`, `section_status`, `raw_text`, `normalized_text`, `start_offset`, `end_offset`, `content_hash`, `confidence`, `classification_method`, `structural_payload`, `created_at`, `metadata`.
+
+### DTO-54. ParseJobDTO
+
+- **Назначение.** Задание парсинга документов (SETUP-04). Самостоятельная lifecycle-entity: один RAGSetupJob → 1..N ParseJob (повторный запуск создаёт новый ParseJob). Содержит агрегированные счётчики прогресса и state machine статусов.
+- **Основное хранилище.** PostgreSQL (таблица `parse_jobs`). MVP: in-memory dict в ParseService.
+- **Producer.** SVC-07 Document Parser Service.
+- **Consumers.** SVC-04 Setup Orchestrator, SVC-01 Frontend UI, SVC-36 Audit Service.
+- **Ключевые поля.** `parse_job_id`, `setup_job_id`, `requested_by`, `status`, `total_documents`, `processed_documents`, `failed_documents`, `total_sections`, `low_confidence_sections`, `started_at`, `finished_at`, `created_at`, `updated_at`, `config`, `error_code`, `error_message`.
+
+### DTO-55. ParseJobDocumentDTO
+
+- **Назначение.** Статус обработки одного SourceDocument в рамках ParseJob. Связывает ParseJob с SourceDocument, фиксирует применённую стратегию, счётчики секций и тайминг.
+- **Основное хранилище.** PostgreSQL (таблица `parse_job_documents`). MVP: in-memory.
+- **Producer.** SVC-07 Document Parser Service.
+- **Consumers.** SVC-04 Setup Orchestrator, SVC-01 Frontend UI, SVC-36 Audit Service.
+- **Ключевые поля.** `parse_job_document_id`, `parse_job_id`, `source_document_id`, `status`, `parser_strategy`, `sections_count`, `low_confidence_sections_count`, `started_at`, `finished_at`, `duration_ms`, `error_code`, `error_message`, `metadata`.
+
+### DTO-56. SectionClassificationDTO
+
+- **Назначение.** Неизменяемая запись о классификации ParsedSection. Одна секция может иметь несколько записей: первичная (rule_based) и ревизии (manual, llm_fallback post-MVP). Упорядочиваются по `created_at`.
+- **Основное хранилище.** PostgreSQL (таблица `section_classifications`). MVP: in-memory.
+- **Producer.** SVC-07 Document Parser Service (rule-based classifier).
+- **Consumers.** SVC-09 RAG Card Generator, SVC-08 Metadata Validation Service, SVC-36 Audit Service.
+- **Ключевые поля.** `classification_id`, `section_id`, `candidate_type`, `confidence`, `method`, `model_name`, `reason`, `created_at`, `metadata`.
+
+### DTO-57. DocumentParseReportDTO
+
+- **Назначение.** Итоговый отчёт о парсинге одного документа в рамках ParseJob. Создаётся по завершении обработки. Хранит агрегированную статистику; детальный лог — в `SourceProcessingLogEntry`.
+- **Основное хранилище.** PostgreSQL (таблица `parse_reports`). MVP: in-memory.
+- **Producer.** SVC-07 Document Parser Service.
+- **Consumers.** SVC-04 Setup Orchestrator, SVC-01 Frontend UI, SVC-36 Audit Service.
+- **Ключевые поля.** `parse_report_id`, `parse_job_id`, `source_document_id`, `status`, `parser_strategy`, `summary` (`sections_count`, `sections_by_type`, `low_confidence_sections`), `errors[]`, `warnings[]`, `created_at`.
+
+### DTO-58. ParseErrorDTO
+
+- **Назначение.** Компактный DTO ошибки парсинга для HTTP-ответов API. Не хранится самостоятельно; является частью batch-ответов и отчётов.
+- **Основное хранилище.** Не хранится.
+- **Producer.** SVC-07 Document Parser Service, SVC-02 API Gateway.
+- **Consumers.** SVC-01 Frontend UI, SVC-04 Setup Orchestrator.
+- **Ключевые поля.** `source_document_id`, `filename`, `error_code`, `message`, `parser_strategy`, `retryable`.
 
 ### DTO-11. RAGCardDTO
 

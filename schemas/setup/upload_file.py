@@ -35,8 +35,7 @@ class UploadFile(BaseModel):
     def _content_type_supported(cls, v: str) -> str:
         if v not in SUPPORTED_CONTENT_TYPES:
             raise ValueError(
-                f"Unsupported content_type: {v!r}. "
-                f"Allowed: {sorted(SUPPORTED_CONTENT_TYPES)}"
+                f"Unsupported content_type: {v!r}. Allowed: {sorted(SUPPORTED_CONTENT_TYPES)}"
             )
         return v
 
@@ -46,7 +45,5 @@ class UploadFile(BaseModel):
         if v == 0:
             raise ValueError("Empty file (size_bytes == 0) is not allowed")
         if v > MAX_FILE_SIZE_BYTES:
-            raise ValueError(
-                f"File size {v} bytes exceeds limit {MAX_FILE_SIZE_BYTES} bytes"
-            )
+            raise ValueError(f"File size {v} bytes exceeds limit {MAX_FILE_SIZE_BYTES} bytes")
         return v

@@ -32,9 +32,7 @@ def gateway() -> LLMGateway:
     gw.close()
 
 
-def _generate_response(
-    body_json: str, *, prompt_eval: int = 10, eval_count: int = 20
-) -> dict:
+def _generate_response(body_json: str, *, prompt_eval: int = 10, eval_count: int = 20) -> dict:
     return {
         "model": "llama3.2",
         "response": body_json,
@@ -125,9 +123,7 @@ class TestGenerateStructured:
     @respx.mock
     def test_extra_fields_rejected(self, gateway: LLMGateway) -> None:
         respx.post("http://localhost:11434/api/generate").respond(
-            json=_generate_response(
-                '{"title": "x", "confidence": 0.5, "hallucinated": true}'
-            )
+            json=_generate_response('{"title": "x", "confidence": 0.5, "hallucinated": true}')
         )
         with pytest.raises(InvalidLLMOutputError):
             gateway.generate_structured(prompt="x", schema=SimpleOutput)
@@ -152,8 +148,6 @@ class TestEmbeddings:
 
     @respx.mock
     def test_embedding_missing_field(self, gateway: LLMGateway) -> None:
-        respx.post("http://localhost:11434/api/embeddings").respond(
-            json={"wrong": "shape"}
-        )
+        respx.post("http://localhost:11434/api/embeddings").respond(json={"wrong": "shape"})
         with pytest.raises(InvalidLLMOutputError):
             gateway.generate_embedding(text="x")

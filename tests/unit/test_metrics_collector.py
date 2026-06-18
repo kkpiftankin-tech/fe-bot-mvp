@@ -53,12 +53,8 @@ class TestHistogram:
         reg.observe("rpc_latency_seconds", 0.05, labels={"op": "embed"})
         reg.observe("rpc_latency_seconds", 0.1, labels={"op": "embed"})
         reg.observe("rpc_latency_seconds", 0.3, labels={"op": "search"})
-        assert (
-            reg.histogram_count("rpc_latency_seconds", labels={"op": "embed"}) == 2
-        )
-        assert (
-            reg.histogram_sum("rpc_latency_seconds", labels={"op": "search"}) == 0.3
-        )
+        assert reg.histogram_count("rpc_latency_seconds", labels={"op": "embed"}) == 2
+        assert reg.histogram_sum("rpc_latency_seconds", labels={"op": "search"}) == 0.3
 
     def test_buckets_default_count(self, reg: MetricsRegistry) -> None:
         reg.observe("x", 0.5)

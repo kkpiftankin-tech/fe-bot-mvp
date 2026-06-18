@@ -27,7 +27,12 @@
 | DTO-07 RAGSetupJobDTO | SVC-04 Setup Orchestrator | SVC-01, SVC-02, SVC-35, SVC-36, SVC-37 |
 | DTO-08 UploadFileDTO | SVC-01 Frontend | SVC-02, SVC-05, SVC-38 |
 | DTO-09 SourceDocumentDTO | SVC-05 Document Upload Service | SVC-06, SVC-07, SVC-09, SVC-35, SVC-36, SVC-38 |
-| DTO-10 ParsedSectionDTO | SVC-07 Document Parser | SVC-06, SVC-09, SVC-35, SVC-36 |
+| DTO-10 ParsedSectionDTO | SVC-07 Document Parser | SVC-06, SVC-08, SVC-09, SVC-35, SVC-36 |
+| DTO-54 ParseJobDTO | SVC-07 Document Parser | SVC-01, SVC-04, SVC-36 |
+| DTO-55 ParseJobDocumentDTO | SVC-07 Document Parser | SVC-01, SVC-04, SVC-36 |
+| DTO-56 SectionClassificationDTO | SVC-07 Document Parser | SVC-08, SVC-09, SVC-36 |
+| DTO-57 DocumentParseReportDTO | SVC-07 Document Parser | SVC-01, SVC-04, SVC-36 |
+| DTO-58 ParseErrorDTO | SVC-07 Document Parser, SVC-02 API Gateway | SVC-01, SVC-04 |
 | DTO-11 RAGCardDTO | SVC-09 RAG Card Generator | SVC-08, SVC-10, SVC-11, SVC-15, SVC-21, SVC-36 |
 | DTO-12 RAGMetadataDTO | SVC-08 Metadata Validation Service | SVC-09, SVC-11, SVC-13, SVC-21 |
 | DTO-13 RAGCardReviewDTO | SVC-10 RAG Card Review | SVC-15, SVC-36, SVC-01 |

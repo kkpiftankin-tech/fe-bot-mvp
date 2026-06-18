@@ -66,9 +66,7 @@ class TestProcessingLogEntry:
             _make_entry(extra_field="x")
 
     def test_payload_with_arbitrary_data(self) -> None:
-        entry = _make_entry(
-            payload={"parser_version": "1.0", "input_size_bytes": 1024}
-        )
+        entry = _make_entry(payload={"parser_version": "1.0", "input_size_bytes": 1024})
         assert entry.payload["parser_version"] == "1.0"
 
 

@@ -52,9 +52,7 @@ class TestAppend:
         """Повторный append с тем же event_id возвращает существующую."""
         repo = InMemoryStatusHistoryRepository()
         first = repo.append(_entry())
-        second = repo.append(
-            _entry(history_id="hist_DIFFERENT", event_id="evt_001")
-        )
+        second = repo.append(_entry(history_id="hist_DIFFERENT", event_id="evt_001"))
         assert second.status_history_id == first.status_history_id
         # И не создал дубликат в списке.
         assert len(repo.list_for_document("src_001")) == 1
@@ -126,9 +124,7 @@ class TestThreadSafety:
         threads: list[threading.Thread] = []
         for i in range(50):
             t = threading.Thread(
-                target=lambda idx=i: repo.append(
-                    _entry(history_id=f"h_{idx}", event_id="evt_SAME")
-                )
+                target=lambda idx=i: repo.append(_entry(history_id=f"h_{idx}", event_id="evt_SAME"))
             )
             threads.append(t)
         for t in threads:

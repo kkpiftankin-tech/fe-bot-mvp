@@ -61,16 +61,12 @@ class TestErrorCodeContract:
             (UploadErrorCode.INTERNAL_UPLOAD_ERROR, "INTERNAL_UPLOAD_ERROR"),
         ],
     )
-    def test_string_value_stable(
-        self, code: UploadErrorCode, expected_value: str
-    ) -> None:
+    def test_string_value_stable(self, code: UploadErrorCode, expected_value: str) -> None:
         assert code.value == expected_value
 
     def test_all_codes_have_http_status_mapping(self) -> None:
         for code in UploadErrorCode:
-            assert code in ERROR_CODE_HTTP_STATUS, (
-                f"{code.name} missing in ERROR_CODE_HTTP_STATUS"
-            )
+            assert code in ERROR_CODE_HTTP_STATUS, f"{code.name} missing in ERROR_CODE_HTTP_STATUS"
 
 
 class TestHttpStatusMapping:
@@ -89,9 +85,7 @@ class TestHttpStatusMapping:
             (UploadErrorCode.INTERNAL_UPLOAD_ERROR, 500),
         ],
     )
-    def test_http_status_for(
-        self, code: UploadErrorCode, expected_status: int
-    ) -> None:
+    def test_http_status_for(self, code: UploadErrorCode, expected_status: int) -> None:
         assert http_status_for(code) == expected_status
 
 

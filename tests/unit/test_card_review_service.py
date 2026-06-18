@@ -189,10 +189,7 @@ class TestVersionHelpers:
         assert _bump_version(version) == expected
 
     def test_new_doc_id_replaces_v_suffix(self) -> None:
-        assert (
-            _new_doc_id("schema_card.tracks.v1", "1.1")
-            == "schema_card.tracks.v1.1"
-        )
+        assert _new_doc_id("schema_card.tracks.v1", "1.1") == "schema_card.tracks.v1.1"
 
     def test_new_doc_id_without_v_suffix(self) -> None:
         # Если doc_id не следует соглашению `…vN`, делаем append.

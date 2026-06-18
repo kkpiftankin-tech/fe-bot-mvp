@@ -155,6 +155,4 @@ class TestStateMachine:
         """Каждый статус (кроме UPLOADED как initial) должен быть в ALLOWED_TRANSITIONS."""
         # UPLOADED тоже есть — initial state.
         for status in SourceDocumentStatus:
-            assert status in ALLOWED_TRANSITIONS, (
-                f"Status {status} missing in ALLOWED_TRANSITIONS"
-            )
+            assert status in ALLOWED_TRANSITIONS, f"Status {status} missing in ALLOWED_TRANSITIONS"

@@ -147,8 +147,7 @@ class TestCancel:
         svc.cancel_job(job.setup_job_id)
         svc.cancel_job(job.setup_job_id)  # должно быть no-op
         cancelled_events = [
-            e for e in bus.history(job.setup_job_id)
-            if e.event_type == "setup.job.cancelled"
+            e for e in bus.history(job.setup_job_id) if e.event_type == "setup.job.cancelled"
         ]
         assert len(cancelled_events) == 1
 
