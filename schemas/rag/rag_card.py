@@ -17,7 +17,7 @@ from schemas.rag.ontology import DocType
 
 
 class CardStatus(StrEnum):
-    """Жизненный цикл карточки (см. docs/06-rag/rag-lifecycle.md)."""
+    """Жизненный цикл карточки (см. docs/06-rag/card-lifecycle.md, rag-lifecycle.md)."""
 
     DRAFT = "draft"
     GENERATED = "generated"
@@ -29,23 +29,59 @@ class CardStatus(StrEnum):
     INDEXED = "indexed"
     PUBLISHED = "published"
     DEPRECATED = "deprecated"
+    # SETUP-05 lifecycle statuses (см. docs/06-rag/card-lifecycle.md).
+    GENERATION_FAILED = "generation_failed"
+    METADATA_INCOMPLETE = "metadata_incomplete"
+    BODY_EMPTY = "body_empty"
+    LOW_CONFIDENCE = "low_confidence"
+    READY_FOR_METADATA_VALIDATION = "ready_for_metadata_validation"
+    REJECTED = "rejected"
 
 
 _FORWARD_CARD_TRANSITIONS: dict[CardStatus, frozenset[CardStatus]] = {
-    CardStatus.DRAFT: frozenset({CardStatus.GENERATED, CardStatus.DEPRECATED}),
+    CardStatus.DRAFT: frozenset(
+        {
+            CardStatus.GENERATED,
+            # SETUP-05 precheck outcomes:
+            CardStatus.GENERATION_FAILED,
+            CardStatus.METADATA_INCOMPLETE,
+            CardStatus.BODY_EMPTY,
+            CardStatus.LOW_CONFIDENCE,
+            CardStatus.DEPRECATED,
+        }
+    ),
     CardStatus.GENERATED: frozenset(
-        {CardStatus.METADATA_VALIDATED, CardStatus.REVIEW_REQUIRED, CardStatus.DEPRECATED}
+        {
+            CardStatus.METADATA_VALIDATED,
+            CardStatus.REVIEW_REQUIRED,
+            # SETUP-05: переход в ready_for_metadata_validation для SETUP-07.
+            CardStatus.READY_FOR_METADATA_VALIDATION,
+            CardStatus.DEPRECATED,
+        }
     ),
     CardStatus.METADATA_VALIDATED: frozenset(
         {CardStatus.REVIEW_REQUIRED, CardStatus.APPROVED, CardStatus.DEPRECATED}
     ),
-    CardStatus.REVIEW_REQUIRED: frozenset(
+    CardStatus.READY_FOR_METADATA_VALIDATION: frozenset(
         {
-            CardStatus.APPROVED,
-            CardStatus.DRAFT,  # rejected → back to draft for regeneration
+            CardStatus.METADATA_VALIDATED,
+            CardStatus.REVIEW_REQUIRED,  # SETUP-07 failure → review
             CardStatus.DEPRECATED,
         }
     ),
+    CardStatus.REVIEW_REQUIRED: frozenset(
+        {
+            CardStatus.APPROVED,
+            CardStatus.READY_FOR_METADATA_VALIDATION,  # SETUP-06 approval → S07
+            CardStatus.REJECTED,
+            CardStatus.DRAFT,  # legacy regenerate path
+            CardStatus.DEPRECATED,
+        }
+    ),
+    CardStatus.LOW_CONFIDENCE: frozenset({CardStatus.REVIEW_REQUIRED, CardStatus.DEPRECATED}),
+    CardStatus.METADATA_INCOMPLETE: frozenset({CardStatus.REVIEW_REQUIRED, CardStatus.DEPRECATED}),
+    CardStatus.BODY_EMPTY: frozenset({CardStatus.GENERATION_FAILED, CardStatus.DEPRECATED}),
+    CardStatus.GENERATION_FAILED: frozenset({CardStatus.DRAFT, CardStatus.DEPRECATED}),
     CardStatus.APPROVED: frozenset(
         {CardStatus.CHUNKED, CardStatus.REVIEW_REQUIRED, CardStatus.DEPRECATED}
     ),
@@ -53,6 +89,7 @@ _FORWARD_CARD_TRANSITIONS: dict[CardStatus, frozenset[CardStatus]] = {
     CardStatus.EMBEDDED: frozenset({CardStatus.INDEXED, CardStatus.DEPRECATED}),
     CardStatus.INDEXED: frozenset({CardStatus.PUBLISHED, CardStatus.DEPRECATED}),
     CardStatus.PUBLISHED: frozenset({CardStatus.DEPRECATED}),
+    CardStatus.REJECTED: frozenset(),  # terminal
     CardStatus.DEPRECATED: frozenset(),  # terminal
 }
 
@@ -67,7 +104,12 @@ class InvalidCardTransitionError(ValueError):
 
 
 class RAGCard(BaseModel):
-    """RAG-карточка — основная единица знания до chunking."""
+    """RAG-карточка — основная единица знания до chunking.
+
+    SETUP-05 extension: добавлены optional поля для versioning, attachment
+    к Markdown artifact и primary section reference. Все новые поля имеют
+    defaults для backward-compat с SETUP-01..03 legacy pipeline.
+    """
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
@@ -86,6 +128,46 @@ class RAGCard(BaseModel):
     created_at: datetime
     updated_at: datetime
     published_at: datetime | None = None
+
+    # --- SETUP-05 extension fields (all optional, backward-compat) ---
+    setup_job_id: str | None = Field(
+        default=None,
+        description="RAGSetupJob ID. Optional для legacy совместимости.",
+    )
+    card_version: str = Field(
+        default="1.0",
+        pattern=r"^\d+(\.\d+){0,2}$",
+        description="Версия карточки (monotonic при regenerate).",
+    )
+    markdown_artifact_id: str | None = Field(
+        default=None,
+        description="Ссылка на RAGCardMarkdownDTO artifact в Object Storage.",
+    )
+    primary_source_section_id: str | None = Field(
+        default=None,
+        description="Главная ParsedSection.section_id для этой карточки.",
+    )
+    created_by_type: str | None = Field(
+        default=None,
+        description="service|user|system",
+    )
+    created_by_id: str | None = Field(
+        default=None,
+        description="Дублирует created_by для типизированного фильтра.",
+    )
+    review_required_reason: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="Читаемое объяснение, почему карточка попала в review_required.",
+    )
+    error_code: str | None = Field(
+        default=None,
+        description="RAGCardGenerationErrorCode при status=generation_failed.",
+    )
+    error_message: str | None = Field(
+        default=None,
+        max_length=4000,
+    )
 
     def can_transition_to(self, new_status: CardStatus) -> bool:
         return new_status in _FORWARD_CARD_TRANSITIONS.get(self.status, frozenset())
