@@ -29,6 +29,8 @@
 | [§11 Domain Analytics DTO](#11-domain-analytics-dto) | DTO-52..53 | FeatureStoreTable, FeatureField |
 | [§12 Сводная карта DTO → хранилище → сервисы](#12-сводная-карта-dto--хранилище--сервисы) | — | Сжатая матрица |
 | [§13 Минимальный DTO-набор для MVP](#13-минимальный-dto-набор-для-mvp) | 26 DTO | Подмножество, покрывающее полный путь пользователя |
+| [§14 SETUP-04 DTO — Парсинг документов](#14-setup-04-dto--парсинг-документов) | DTO-54..58 | ParseJob, ParseJobDocument, SectionClassification, DocumentParseReport, ParseError |
+| [§15 SETUP-05 DTO — Генерация RAG-карточек](#15-setup-05-dto--генерация-rag-карточек) | DTO-59..66 | RAGCardGenerationJob, JobSection, CardMetadata, CardMarkdown, SourceLink, GenerationReport, ValidationReport, RAGCard (расширение) |
 
 ## Принципы
 
@@ -130,6 +132,10 @@
 - **Consumers.** SVC-06 Source Registry, SVC-09 RAG Card Generator, SVC-08 Metadata Validation Service, SVC-35 Analytics Service, SVC-36 Audit Service.
 - **Ключевые поля.** `section_id`, `parse_job_id`, `source_document_id`, `section_index`, `parent_section_id`, `heading_path[]`, `title`, `section_type`, `section_status`, `raw_text`, `normalized_text`, `start_offset`, `end_offset`, `content_hash`, `confidence`, `classification_method`, `structural_payload`, `created_at`, `metadata`.
 
+---
+
+## §14. SETUP-04 DTO — Парсинг документов
+
 ### DTO-54. ParseJobDTO
 
 - **Назначение.** Задание парсинга документов (SETUP-04). Самостоятельная lifecycle-entity: один RAGSetupJob → 1..N ParseJob (повторный запуск создаёт новый ParseJob). Содержит агрегированные счётчики прогресса и state machine статусов.
@@ -169,6 +175,81 @@
 - **Producer.** SVC-07 Document Parser Service, SVC-02 API Gateway.
 - **Consumers.** SVC-01 Frontend UI, SVC-04 Setup Orchestrator.
 - **Ключевые поля.** `source_document_id`, `filename`, `error_code`, `message`, `parser_strategy`, `retryable`.
+
+## §15. SETUP-05 DTO — Генерация RAG-карточек
+
+### DTO-59. RAGCardGenerationJobDTO
+
+- **Назначение.** Lifecycle-сущность задания автоматической генерации RAG-карточек поверх множества `ParsedSection` одного RAGSetupJob. Самостоятельная entity (как `ParseJob` в SETUP-04): один RAGSetupJob → 1..N `RAGCardGenerationJob` (повторный запуск/regenerate создаёт новый job). Содержит state machine, агрегированные счётчики и config генерации (model, prompt_template_version, ontology_version, confidence_threshold).
+- **Основное хранилище.** PostgreSQL (таблица `rag_card_generation_jobs`). MVP: in-memory `InMemoryRAGCardGenerationJobRepository` со snapshot/restore.
+- **Producer.** SVC-09 RAG Card Generation Service.
+- **Consumers.** SVC-04 Setup Orchestrator, SVC-01 Frontend UI, SVC-36 Audit Service, SVC-35 Analytics Service.
+- **Ключевые поля.** `generation_job_id`, `setup_job_id`, `requested_by`, `status` (`created`/`queued`/`running`/`partial_success`/`completed`/`failed`/`cancelled`), `total_sections`, `processed_sections`, `generated_cards`, `failed_sections`, `review_required_cards`, `started_at`, `finished_at`, `created_at`, `updated_at`, `config`, `error_code`, `error_message`.
+- **State machine.** CREATED→{QUEUED, CANCELLED}; QUEUED→{RUNNING, CANCELLED, FAILED}; RUNNING→{COMPLETED, PARTIAL_SUCCESS, FAILED, CANCELLED}; остальные terminal.
+- **Идемпотентность.** Опциональный `generation_request_id` в `config` для дедупликации запросов; `get_active_for_setup_job()` блокирует параллельный job → 409 `RAG_CARD_GENERATION_ALREADY_RUNNING`.
+
+### DTO-60. RAGCardGenerationJobSectionDTO
+
+- **Назначение.** Per-section запись внутри `RAGCardGenerationJob`: связывает job с конкретной `ParsedSection`, фиксирует выбранный `doc_type`, сгенерированный `doc_id`, confidence и timing. Эквивалент `ParseJobDocument` из SETUP-04 для card-generation.
+- **Основное хранилище.** PostgreSQL (таблица `rag_card_generation_job_sections`). MVP: in-memory с insertion-order preservation.
+- **Producer.** SVC-09 RAG Card Generation Service.
+- **Consumers.** SVC-04 Setup Orchestrator, SVC-01 Frontend UI (per-section progress), SVC-36 Audit Service.
+- **Ключевые поля.** `generation_job_section_id`, `generation_job_id`, `section_id`, `source_document_id`, `status` (`pending`/`processing`/`completed`/`failed`/`skipped`), `target_doc_type`, `generated_doc_id`, `confidence_level` (`high`/`medium`/`low`), `started_at`, `finished_at`, `duration_ms`, `error_code`, `error_message`, `warnings[]`, `metadata`.
+- **Идемпотентность.** Уникальность `(generation_job_id, section_id)`; используется для blocking повторной генерации той же секции внутри одного job.
+
+### DTO-61. RAGCardMetadataDTO
+
+- **Назначение.** Типизированный YAML front matter RAG-карточки: ontology-validated metadata (domain, task_type, data_source, entity_type, phase, agent_targets), retrieval tags, doc-type-specific поля (feature_tables, validation_rules, compatible_models). Сериализуется в YAML для Markdown artifact и используется retrieval-фильтрами в SETUP-09/runtime. Хранит `metadata_schema_version` для контроля совместимости.
+- **Основное хранилище.** PostgreSQL (таблица `rag_card_metadata`, partitioned по `(doc_id, card_version)`). MVP: in-memory + snapshot. YAML-снимки также попадают в Object Storage (`rag/cards/{sid}/{doc_id}.metadata.json` для аудита).
+- **Producer.** SVC-09 RAG Card Generation Service.
+- **Consumers.** SVC-15 Card Registry, SVC-08 Metadata Validation Service (SETUP-07), SVC-21 RAG Retrieval Service (runtime фильтры), SVC-01 Frontend UI.
+- **Ключевые поля.** `doc_id`, `card_version`, `front_matter` (dict), typed-поля: `domain[]`, `task_type[]`, `data_source[]`, `entity_type[]`, `phase[]`, `agent_targets[]`, `retrieval_tags[]`, `required_input_fields[]`, `output_fields[]`, `feature_tables[]`, `validation_rules[]`, `compatible_models[]`, `owner`, `last_verified_at`, `metadata_schema_version` (default `"rag_metadata_v1"`).
+- **Валидация.** На уровне DTO через ontology v1 ([rag/ontology/ontology_v1.yaml](../../../rag/ontology/ontology_v1.yaml)): неизвестные enum-значения → warnings, не errors.
+
+### DTO-62. RAGCardMarkdownDTO
+
+- **Назначение.** Финальный Markdown-документ карточки: YAML front matter + body. Это единица, которая сохраняется как artifact в Object Storage и загружается в Chunking Service. Содержит cleaned body (sanitized markdown без HTML-комментариев и потенциальных prompt-injection-like spans).
+- **Основное хранилище.** Object Storage по пути `rag/cards/{setup_job_id}/{doc_id}.md`. Metadata-snapshot — PostgreSQL (`rag_card_artifacts`).
+- **Producer.** SVC-09 RAG Card Generation Service (через MarkdownBuilder).
+- **Consumers.** SVC-11 Chunking Service (SETUP-08), SVC-01 Frontend UI (preview), SVC-36 Audit Service.
+- **Ключевые поля.** `doc_id`, `card_version`, `markdown` (полный текст), `front_matter_yaml`, `body_markdown`.
+- **Валидация.** `markdown` обязан начинаться с `---\n...\n---\n` блока, равного `front_matter_yaml`; `body_markdown` непустой (min_length=1).
+
+### DTO-63. RAGCardSourceLinkDTO
+
+- **Назначение.** Lineage relation между RAG-карточкой и parsed_section (semantic `GENERATED_FROM`). Идемпотентен по `(doc_id, card_version, source_section_id, relation_type)`. Расширяет SETUP-03 source lineage до RAG-карточек: запись попадает и в `SourceLineageRelation` через `SourceLifecycleService.link_artifact()`.
+- **Основное хранилище.** PostgreSQL (таблица `rag_card_source_links`). MVP: in-memory.
+- **Producer.** SVC-09 RAG Card Generation Service.
+- **Consumers.** SVC-15 Card Registry, SVC-03 Source Registry Service, SVC-01 Frontend UI (Source Trace Panel), SVC-36 Audit Service.
+- **Ключевые поля.** `source_link_id`, `doc_id`, `card_version`, `source_document_id`, `source_section_id`, `relation_type` (default `generated_from`), `created_at`, `metadata`.
+- **Связь с SETUP-03 lineage.** Расширяет `LineageRelationType` (добавляется `GENERATED_FROM`) и `LineageTargetType` (`RAG_CARD` уже существует).
+
+### DTO-64. CardGenerationReportDTO
+
+- **Назначение.** Итоговый агрегированный отчёт по `RAGCardGenerationJob`: summary с `cards_by_type` распределением, список ошибок (`errors[]`), warnings (`warnings[]`). Эквивалент `DocumentParseReportDTO` из SETUP-04 для card-generation, но на уровне job, не per-document.
+- **Основное хранилище.** PostgreSQL (таблица `rag_card_validation_reports`, partitioned). MVP: in-memory, последняя запись на job (last-write-wins при regenerate).
+- **Producer.** SVC-09 RAG Card Generation Service.
+- **Consumers.** SVC-04 Setup Orchestrator, SVC-01 Frontend UI (Summary panel), SVC-36 Audit Service, SVC-35 Analytics Service.
+- **Ключевые поля.** `generation_report_id`, `generation_job_id`, `status`, `summary` (`total_sections`, `processed_sections`, `generated_cards`, `failed_sections`, `review_required_cards`, `cards_by_type: dict[str,int]`), `errors[]`, `warnings[]`, `created_at`.
+- **Frozen.** `frozen=True` (immutable после save).
+
+### DTO-65. CardValidationReportDTO
+
+- **Назначение.** Precheck-результат для одной карточки до сохранения: проверка наличия required metadata, doc_type ∈ enum, body не пустой, front matter валиден. Отделён от SETUP-07 (полная metadata validation): здесь только blocking-проверки структуры. При failed → карточка не сохраняется как `generated`.
+- **Основное хранилище.** PostgreSQL (таблица `rag_card_validation_reports`, общая с DTO-64; различаются по типу). MVP: in-memory.
+- **Producer.** SVC-09 RAG Card Generation Service (через `CardValidationPrecheck`).
+- **Consumers.** SVC-09 RAG Card Generation Service (gating), SVC-01 Frontend UI (Validation tab в Preview Drawer).
+- **Ключевые поля.** `validation_report_id`, `doc_id`, `card_version`, `passed` (bool), `errors[]` (codes: `DOC_ID_MISSING`, `DOC_TYPE_INVALID`, `SOURCE_FILES_EMPTY`, `SOURCE_SECTIONS_EMPTY`, `CARD_BODY_EMPTY`, `FRONT_MATTER_INVALID`), `warnings[]` (codes: `RETRIEVAL_TAGS_EMPTY`, `MISSING_OPTIONAL_METADATA`), `checked_at`.
+- **Frozen.** `frozen=True`.
+
+### DTO-66. RAGCardDTO (расширение DTO-11 для SETUP-05)
+
+- **Назначение.** Расширение существующего DTO-11 `RAGCardDTO` дополнительными полями lifecycle: `card_version` (для versioning при regenerate), `markdown_artifact_id` (ссылка на DTO-62), `primary_source_section_id` (ссылка на ParsedSection), `review_required_reason` (читаемая причина для UI), расширенный enum `status` до 10 значений (`draft`/`generated`/`generation_failed`/`metadata_incomplete`/`body_empty`/`low_confidence`/`review_required`/`ready_for_metadata_validation`/`rejected`/`deprecated`). Backward-compat: новые поля имеют дефолты, существующие SETUP-01..03 карточки остаются валидными.
+- **Основное хранилище.** PostgreSQL (таблица `rag_cards`, уникальность по `(doc_id, card_version)`). MVP: `InMemoryRAGCardRegistry` с расширенной API: `save_version`, `attach_artifact`, `save_metadata`, `list_for_setup_job(filter)`.
+- **Producer.** SVC-09 RAG Card Generation Service (новые карточки и версии), SVC-10 RAG Card Review Service (статусные переходы).
+- **Consumers.** SVC-15 Card Registry, SVC-04 Setup Orchestrator, SVC-01 Frontend UI (List, Preview, Drawer), SVC-08 Metadata Validation (SETUP-07), SVC-11 Chunking Service (SETUP-08), SVC-36 Audit Service.
+- **Ключевые поля (расширение DTO-11).** Существующие: `doc_id`, `doc_type`, `title`, `front_matter`, `body_markdown`, `source_document_ids[]`, `source_section_ids[]`, `confidence_level`, `created_by`, `reviewed_by`, `created_at`, `updated_at`, `published_at`. **Новые в SETUP-05:** `setup_job_id`, `card_version` (default `"1.0"`), `markdown_artifact_id` (nullable), `primary_source_section_id`, `created_by_type`, `created_by_id`, `review_required_reason`, `error_code`, `error_message`. Расширенный `status` enum (10 значений выше).
+- **Связь с DTO-61/62/63.** `RAGCard` хранит ссылки на `RAGCardMetadataDTO` (1:1 по `(doc_id, card_version)`), `RAGCardMarkdownDTO` (1:1 через `markdown_artifact_id`), `RAGCardSourceLinkDTO` (1:N).
 
 ### DTO-11. RAGCardDTO
 
@@ -562,6 +643,19 @@
 | DTO-51 ProcessingReportDTO | PostgreSQL, Object Storage, ClickHouse | Setup, Worker, Export |
 | DTO-52 FeatureStoreTableDTO | PostgreSQL, Feature Store, ClickHouse | Domain Analytics, Feature Store |
 | DTO-53 FeatureFieldDTO | PostgreSQL | Feature Store, RAG Generator |
+| DTO-54 ParseJobDTO | PostgreSQL; MVP in-memory | Document Parser, Setup Orchestrator, Frontend, Audit |
+| DTO-55 ParseJobDocumentDTO | PostgreSQL; MVP in-memory | Document Parser, Setup Orchestrator, Frontend, Audit |
+| DTO-56 SectionClassificationDTO | PostgreSQL; MVP in-memory | Document Parser, RAG Card Generator, Metadata Validation, Audit |
+| DTO-57 DocumentParseReportDTO | PostgreSQL; MVP in-memory | Document Parser, Setup Orchestrator, Frontend, Audit |
+| DTO-58 ParseErrorDTO | Не хранится | Document Parser, API, Frontend, Setup Orchestrator |
+| DTO-59 RAGCardGenerationJob | PostgreSQL `rag_card_generation_jobs`; MVP in-memory | RAGCardGenerationOrchestrator, API, Frontend, Audit |
+| DTO-60 RAGCardGenerationJobSection | PostgreSQL `rag_card_generation_job_sections`; MVP in-memory | RAGCardGenerationOrchestrator, API, Frontend |
+| DTO-61 RAGCardMetadataDTO | PostgreSQL `rag_card_metadata`; MVP in-memory | RAGCardGenerationOrchestrator, Card Registry, Frontend, Metadata Validation |
+| DTO-62 RAGCardMarkdownDTO | Object Storage `rag/cards/{sid}/{doc_id}.md` | MarkdownBuilder, Artifact Storage, Frontend |
+| DTO-63 RAGCardSourceLinkDTO | PostgreSQL `rag_card_source_links`; MVP in-memory | RAGCardGenerationOrchestrator, Source Registry, Frontend |
+| DTO-64 CardGenerationReportDTO | PostgreSQL `rag_card_validation_reports`; MVP in-memory | RAGCardGenerationOrchestrator, API, Frontend, Audit |
+| DTO-65 CardValidationReportDTO | PostgreSQL `rag_card_validation_reports`; MVP in-memory | CardValidationPrecheck, RAGCardGenerationOrchestrator, Frontend |
+| DTO-66 RAGCard (расширение) | PostgreSQL `rag_cards`; MVP in-memory | Card Registry, API, Frontend, SETUP-06/07/08 |
 
 Подробная матрица DTO → конкретный SVC — в [../../traceability/dto-to-service-map.md](../../traceability/dto-to-service-map.md).
 

@@ -1,0 +1,356 @@
+# Ontology v1 for FE-Bot RAG cards (SETUP-05).
+# Loaded by src/fe_bot/setup/rag_card_generation/ontology_mapper.py.
+# Values are canonical; synonyms map to canonical via lower-cased keys.
+# MVP scope — расширения проходят через bump до ontology_v2 + миграцию RAGCardMetadata.
+#
+# Source of truth: docs/06-rag/ontology.md + schemas/rag/ontology.py.
+# Synonyms are case-insensitive; OntologyMapper must apply .lower().strip() before lookup.
+
+ontology_version: "ontology_v1"
+
+# ---------------------------------------------------------------------------
+# domain — физический / прикладной домен задачи.
+# Canonical values соответствуют Domain(StrEnum) в schemas/rag/ontology.py.
+# ---------------------------------------------------------------------------
+domain:
+  values:
+    - naval
+    - air
+    - ground
+    - cyber
+    - analytical
+    - custom
+  descriptions:
+    naval: "Морская тематика: radar, sonar, AIS, надводные и подводные объекты"
+    air: "Воздушный домен: воздушное пространство, авиация, БПЛА"
+    ground: "Наземный домен: бронетехника, транспорт, наземные объекты"
+    cyber: "Кибер-домен: сетевые события, кибератаки, аномалии"
+    analytical: "Общая аналитика без жёсткой физической привязки"
+    custom: "Открытая категория для пользовательских доменов; карточка помечается review_required"
+  synonyms:
+    # русскоязычные
+    морской: naval
+    морская: naval
+    флот: naval
+    "военно-морской": naval
+    воздушный: air
+    авиация: air
+    авиационный: air
+    наземный: ground
+    наземная: ground
+    сухопутный: ground
+    кибер: cyber
+    кибербезопасность: cyber
+    аналитика: analytical
+    аналитический: analytical
+    # английские синонимы / допустимые написания
+    maritime: naval
+    sea: naval
+    undersea: naval
+    aerospace: air
+    aviation: air
+    drone: air
+    uav: air
+    land: ground
+    terrestrial: ground
+    armored: ground
+    cybersecurity: cyber
+    network: cyber
+    general: analytical
+    generic: analytical
+
+# ---------------------------------------------------------------------------
+# task_type — тип ML-задачи.
+# Canonical values: TaskType(StrEnum) в schemas/rag/ontology.py.
+# ---------------------------------------------------------------------------
+task_type:
+  values:
+    - classification
+    - regression
+    - clustering
+    - anomaly_detection
+    - ranking
+    - trajectory_forecasting
+    - object_detection
+  descriptions:
+    classification: "Задача классификации: бинарная или многоклассовая"
+    regression: "Задача регрессии: предсказание непрерывной величины"
+    clustering: "Кластеризация: разбиение на группы без меток"
+    anomaly_detection: "Обнаружение аномалий, выбросов, нештатных ситуаций"
+    ranking: "Ранжирование объектов по релевантности или приоритету"
+    trajectory_forecasting: "Прогноз траектории движущегося объекта"
+    object_detection: "Обнаружение и локализация объектов"
+  synonyms:
+    # русскоязычные
+    классификация: classification
+    классификатор: classification
+    регрессия: regression
+    прогноз: trajectory_forecasting
+    прогнозирование: trajectory_forecasting
+    кластеризация: clustering
+    аномалия: anomaly_detection
+    "обнаружение аномалий": anomaly_detection
+    ранжирование: ranking
+    "обнаружение объектов": object_detection
+    детекция: object_detection
+    # английские синонимы
+    detect: anomaly_detection
+    detection: anomaly_detection
+    forecast: trajectory_forecasting
+    forecasting: trajectory_forecasting
+    time_series_forecast: trajectory_forecasting
+    rank: ranking
+    reranking: ranking
+    multiclass: classification
+    binary: classification
+    regression_task: regression
+
+# ---------------------------------------------------------------------------
+# data_source — тип / источник данных.
+# Canonical values: DataSource(StrEnum) в schemas/rag/ontology.py.
+# Значения чувствительны к регистру после нормализации (нижний регистр);
+# исходные enum-строки такие: "radar", "AIS", "ESM", "EO_IR".
+# ---------------------------------------------------------------------------
+data_source:
+  values:
+    - radar
+    - sonar
+    - AIS
+    - ESM
+    - EO_IR
+    - satellite
+    - tracks_fused
+    - external_conditions
+    - tactical_objects
+    - SQL
+    - CSV
+    - JSON
+    - custom
+  descriptions:
+    radar: "Данные радиолокационных станций: дальность, курс, скорость, RCS"
+    sonar: "Гидроакустические данные: подводные объекты, акустический профиль"
+    AIS: "Автоматическая идентификационная система судов (морской AIS)"
+    ESM: "Радиоэлектронная разведка (Electronic Support Measures)"
+    EO_IR: "Электронно-оптические и инфракрасные сенсоры"
+    satellite: "Спутниковые данные: изображения, радар с орбиты"
+    tracks_fused: "Слитые треки из нескольких источников"
+    external_conditions: "Внешние условия: погода, морская обстановка, гидрология"
+    tactical_objects: "Тактические объекты из БД / COP-систем"
+    SQL: "Реляционные базы данных (SQL-источники)"
+    CSV: "Табличные файлы CSV"
+    JSON: "Структурированные данные в формате JSON"
+    custom: "Пользовательский источник данных; требует review"
+  synonyms:
+    # русскоязычные
+    радар: radar
+    рлс: radar
+    гидроакустика: sonar
+    "акустический сенсор": sonar
+    аис: AIS
+    "автоматическая идентификация": AIS
+    эсм: ESM
+    "эо/ик": EO_IR
+    спутник: satellite
+    спутниковый: satellite
+    "слитые треки": tracks_fused
+    "фьюжн треков": tracks_fused
+    "внешние условия": external_conditions
+    погода: external_conditions
+    "тактические объекты": tactical_objects
+    база: SQL
+    таблица: CSV
+    # английские синонимы
+    tabular: CSV
+    database: SQL
+    relational: SQL
+    json_api: JSON
+    rest_api: JSON
+    fused_tracks: tracks_fused
+    fusion: tracks_fused
+    eo: EO_IR
+    ir: EO_IR
+    electro_optical: EO_IR
+    electronic_support: ESM
+    ais_track: AIS
+
+# ---------------------------------------------------------------------------
+# entity_type — тип доменной сущности.
+# Нет прямого аналога в StrEnum; значения введены для SETUP-05 RAGCardMetadataDTO.
+# ---------------------------------------------------------------------------
+entity_type:
+  values:
+    - track
+    - sensor
+    - vessel
+    - aircraft
+    - vehicle
+    - event
+    - session
+    - transaction
+    - user
+    - customer
+    - product
+    - device
+    - account
+    - zone
+    - environment
+  descriptions:
+    track: "Трек (сопровождаемый объект) в системе управления"
+    sensor: "Сенсор-источник данных (радар, гидрофон, AIS-приёмник и т.д.)"
+    vessel: "Морское судно (надводное)"
+    aircraft: "Воздушное судно или БПЛА"
+    vehicle: "Наземное транспортное средство"
+    event: "Дискретное событие в системе (тактическое, системное)"
+    session: "Пользовательская сессия диалога или веб-сессия"
+    transaction: "Финансовая или системная транзакция"
+    user: "Пользователь системы"
+    customer: "Клиент / потребитель"
+    product: "Товар или услуга"
+    device: "Аппаратное устройство / IoT-узел"
+    account: "Учётная запись или финансовый счёт"
+    zone: "Тактическая зона, географическая область"
+    environment: "Внешняя среда (погода, гидрология, геомагнетизм)"
+  synonyms:
+    # русскоязычные
+    трек: track
+    цель: track
+    "сопровождаемая цель": track
+    сенсор: sensor
+    датчик: sensor
+    судно: vessel
+    корабль: vessel
+    "надводный объект": vessel
+    самолёт: aircraft
+    бпла: aircraft
+    вертолёт: aircraft
+    транспорт: vehicle
+    автомобиль: vehicle
+    событие: event
+    сессия: session
+    транзакция: transaction
+    пользователь: user
+    клиент: customer
+    товар: product
+    устройство: device
+    аккаунт: account
+    зона: zone
+    район: zone
+    среда: environment
+    # английские синонимы
+    target: track
+    contact: track
+    radar_target: track
+    ship: vessel
+    surface: vessel
+    plane: aircraft
+    drone: aircraft
+    uav: aircraft
+    car: vehicle
+    ground_vehicle: vehicle
+    log_event: event
+    alert: event
+    web_session: session
+    iot_device: device
+    geo_zone: zone
+
+# ---------------------------------------------------------------------------
+# phase — фаза workflow в LangGraph FE-Bot.
+# Canonical values: Phase(StrEnum) в schemas/rag/ontology.py (10 значений).
+# Включает nlu и analytics, которых нет в docs/04-domain/value-objects.md,
+# но они зафиксированы в Phase(StrEnum) и rag-overview.
+# ---------------------------------------------------------------------------
+phase:
+  values:
+    - nlu
+    - task_discovery
+    - data_profiling
+    - domain_context
+    - feature_synthesis
+    - validation
+    - data_generation
+    - model_selection
+    - export
+    - analytics
+  descriptions:
+    nlu: "Парсинг входного сообщения пользователя в intent + entities"
+    task_discovery: "Определение ML-задачи, target, классов, метрик"
+    data_profiling: "Сбор профиля данных: поля, объём, распределения"
+    domain_context: "Извлечение доменного контекста через RAG"
+    feature_synthesis: "Генерация и критика кандидатов признаков"
+    validation: "Детерминированная валидация признаков и данных"
+    data_generation: "Формирование GenerationSpec и синтетического датасета"
+    model_selection: "Ранжирование моделей, формирование training config"
+    export: "Сборка и экспорт воспроизводимого ML-pipeline"
+    analytics: "Дашборды качества, метрики, observability"
+
+# ---------------------------------------------------------------------------
+# agent_targets — допустимые имена агентов из AGENTS.md.
+# PascalCase — имена Python-классов. Порядок соответствует реестру AGENTS.md.
+# ---------------------------------------------------------------------------
+agent_targets:
+  values:
+    - SessionAgent
+    - NLUAgent
+    - RAGRetrievalAgent
+    - DialogueOrchestratorAgent
+    - ContextMemoryAgent
+    - TaskDiscoveryAgent
+    - DataProfilingAgent
+    - DomainContextAgent
+    - FeatureSynthesisAgent
+    - FeatureCriticAgent
+    - MulticollinearityAgent
+    - DataGenerationSpecAgent
+    - ModelSelectionAgent
+    - ExportAgent
+    - FeedbackAgent
+    - AuditAgent
+  descriptions:
+    SessionAgent: "Создание / восстановление сессии и ContextMemory"
+    NLUAgent: "Парсинг сообщения пользователя в intent + entities"
+    RAGRetrievalAgent: "Извлечение релевантного контекста по metadata-фильтрам"
+    DialogueOrchestratorAgent: "Маршрутизация переходов между фазами (LangGraph)"
+    ContextMemoryAgent: "Поддержание типизированного состояния диалога"
+    TaskDiscoveryAgent: "Определение ML-задачи, target, классов"
+    DataProfilingAgent: "Сбор профиля данных (поля, объём, распределение)"
+    DomainContextAgent: "Извлечение критичных доменных факторов"
+    FeatureSynthesisAgent: "Генерация кандидатов признаков"
+    FeatureCriticAgent: "Валидация кандидатов признаков по правилам"
+    MulticollinearityAgent: "Проверка корреляций / VIF между признаками"
+    DataGenerationSpecAgent: "Формирование GenerationSpec для синтетического датасета"
+    ModelSelectionAgent: "Ранжирование моделей + формирование training config"
+    ExportAgent: "Сборка пакета артефактов + manifest"
+    FeedbackAgent: "Обработка пользовательских подтверждений и изменений"
+    AuditAgent: "Запись событий и решений в audit trail"
+
+# ---------------------------------------------------------------------------
+# doc_type — типы RAG-карточек, допустимые в SETUP-05 (MVP-scope).
+# Canonical values: DocType(StrEnum) в schemas/rag/ontology.py.
+# ontology_card, domain_profile, model_recommendation_card, glossary_term,
+# example_card, bad_example_card — out of scope MVP (defined in schema but
+# not generated in SETUP-05).
+# ---------------------------------------------------------------------------
+doc_type:
+  values:
+    - schema_card
+    - task_card
+    - analytics_card
+    - field_definition_card
+    - feature_pattern_card
+    - validation_rule_card
+    - question_template_card
+  out_of_scope_mvp:
+    - ontology_card
+    - domain_profile
+    - model_recommendation_card
+    - glossary_term
+    - example_card
+    - bad_example_card
+  descriptions:
+    schema_card: "Описание структуры данных, сущностей, полей, источников"
+    task_card: "Описание ML-задачи: target, классы, метрики, модели"
+    analytics_card: "Feature-store таблицы, агрегаты, аналитические признаки"
+    field_definition_card: "Подробное описание одного поля: синонимы, единицы, диапазоны"
+    feature_pattern_card: "Шаблон признака: формула, входы, evidence"
+    validation_rule_card: "Правило проверки данных или признаков"
+    question_template_card: "Шаблон уточняющего вопроса per-missing-slot"
