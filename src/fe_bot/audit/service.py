@@ -65,6 +65,13 @@ class AuditAction(StrEnum):
     CARD_REVIEW_EDITED = "card.review_edited"
     CARD_REVIEW_REGENERATED = "card.review_regenerated"
 
+    # SETUP-05 / T-S05-039: RAG card generation audit actions.
+    RAG_CARD_GENERATION_TRIGGERED = "rag_card.generation_triggered"
+    RAG_CARD_GENERATED = "rag_card.generated"
+    RAG_CARD_REGENERATE_TRIGGERED = "rag_card.regenerate_triggered"
+    RAG_CARD_REVIEW_REQUIRED = "rag_card.review_required"
+    RAG_CARD_GENERATION_CANCELLED = "rag_card.generation_cancelled"
+
     # Indexing
     CHUNKS_INDEXED = "chunks.indexed"
     INDEX_FAILED = "index.failed"

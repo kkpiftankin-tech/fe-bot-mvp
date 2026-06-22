@@ -300,13 +300,13 @@ class RAGCardGenerationOrchestrator:
         )
         self._audit_record(
             actor_id=requested_by,
-            action=AuditAction.PROCESSING_RETRY_TRIGGERED,
+            action=AuditAction.RAG_CARD_GENERATION_TRIGGERED,
             target_type="rag_card_generation_job",
             target_id=gen_id,
             setup_job_id=setup_job_id,
             payload={
-                "event": "rag_card_generation_job_created",
                 "total_sections": len(eligible),
+                "section_ids": [s.section_id for s in eligible],
             },
         )
         return job
@@ -333,6 +333,17 @@ class RAGCardGenerationOrchestrator:
                 occurred_at=started_at,
                 total_sections=job.total_sections,
             )
+        )
+
+        # T-S05-040: structured log — job started.
+        logger.info(
+            "rag_card_generation_job_started",
+            extra={
+                "generation_job_id": generation_job_id,
+                "setup_job_id": job.setup_job_id,
+                "total_sections": job.total_sections,
+                "requested_by": job.requested_by,
+            },
         )
 
         generated = 0
@@ -467,6 +478,21 @@ class RAGCardGenerationOrchestrator:
             "rag_card_generation_jobs_total",
             labels={"outcome": target.value},
             help_text="RAGCardGenerationJob terminal outcomes",
+        )
+
+        # T-S05-040: structured log — job finished.
+        logger.info(
+            "rag_card_generation_job_finished",
+            extra={
+                "generation_job_id": generation_job_id,
+                "setup_job_id": job.setup_job_id,
+                "total_sections": job.total_sections,
+                "generated_cards": generated,
+                "failed_sections": failed,
+                "review_required_cards": review_required,
+                "duration_ms": duration_ms,
+                "outcome": target.value,
+            },
         )
         return job
 
@@ -860,6 +886,34 @@ class RAGCardGenerationOrchestrator:
                     reasons=list(decision_conf.reasons),
                 )
             )
+            self._audit_record(
+                actor_id=job.requested_by,
+                action=AuditAction.RAG_CARD_REVIEW_REQUIRED,
+                target_type="rag_card",
+                target_id=draft.doc_id,
+                setup_job_id=job.setup_job_id,
+                payload={
+                    "generation_job_id": job.generation_job_id,
+                    "reasons": list(decision_conf.reasons),
+                    "confidence_level": decision_conf.level.value,
+                },
+            )
+
+        # Audit: card generated (per card).
+        self._audit_record(
+            actor_id=job.requested_by,
+            action=AuditAction.RAG_CARD_GENERATED,
+            target_type="rag_card",
+            target_id=draft.doc_id,
+            setup_job_id=job.setup_job_id,
+            payload={
+                "generation_job_id": job.generation_job_id,
+                "section_id": section.section_id,
+                "doc_type": doc_type,
+                "confidence_level": decision_conf.level.value,
+                "used_fallback": llm_result.used_fallback,
+            },
+        )
 
         # 17. Metrics.
         self._inc(
@@ -875,6 +929,29 @@ class RAGCardGenerationOrchestrator:
             value=duration_ms,
             labels={"doc_type": doc_type},
             help_text="RAG card generation duration (ms)",
+        )
+
+        # T-S05-040: structured log — per card generated.
+        logger.info(
+            "rag_card_generated",
+            extra={
+                "generation_job_id": job.generation_job_id,
+                "section_id": section.section_id,
+                "doc_id": draft.doc_id,
+                "doc_type": doc_type,
+                "prompt_template_version": str(
+                    job.config.get("prompt_template_version", "v1")
+                ),
+                "ontology_version": str(
+                    job.config.get("ontology_version", "v1")
+                ),
+                "llm_model": llm_result.model,
+                "confidence_level": decision_conf.level.value,
+                "duration_ms": duration_ms,
+                "outcome": "success",
+                "used_fallback": llm_result.used_fallback,
+                "attempts": llm_result.attempts,
+            },
         )
 
         return _SectionOutcome(
@@ -994,6 +1071,18 @@ class RAGCardGenerationOrchestrator:
             "rag_cards_failed_total",
             labels={"error_code": error_code.value},
             help_text="Failed RAG card generations by error_code",
+        )
+
+        # T-S05-040: structured log — per section failure.
+        logger.warning(
+            "rag_card_generation_failed",
+            extra={
+                "generation_job_id": job.generation_job_id,
+                "section_id": job_section.section_id,
+                "doc_type": doc_type,
+                "error_code": error_code.value,
+                "outcome": "failure",
+            },
         )
 
     def _safe_status_update(

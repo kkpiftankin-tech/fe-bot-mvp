@@ -280,3 +280,29 @@ Per-card log record (при каждом переходе статуса):
 - [../02-system/features/SETUP-05-rag-cards-generation.md](../02-system/features/SETUP-05-rag-cards-generation.md) — feature spec; бизнес-правила BR-01..20; AC-01..51
 - [../03-architecture/services/data-transfer-objects.md](../03-architecture/services/data-transfer-objects.md) — DTO-59..66
 - [../implementation-plan/SETUP-05.tasks.md](../implementation-plan/SETUP-05.tasks.md) — scope decisions 2026-06-19; 42 задачи в 8 слайсах
+- [../traceability/setup-05.md](../traceability/setup-05.md) — AC → tests mapping; audit/metrics/logs реестр
+- [../11-operations/rag-card-generation-runbook.md](../11-operations/rag-card-generation-runbook.md) — операционный гайд (запуск, диагностика, очистка state)
+
+---
+
+## Реализация (post-SETUP-05)
+
+После завершения SETUP-05 фактические инварианты реализации:
+
+- **Versioning.** `card_version` — строка вида `"N.0"`, монотонно растёт через
+  `DocIdGenerator`. Старые версии **не удаляются** из `RAGCardRegistry`; они
+  остаются доступны через `GET /rag-cards/{doc_id}?version=...`.
+- **doc_id conflict resolution.** При генерации orchestrator передаёт
+  `existing_doc_ids` в `DocIdGenerator.generate_doc_id()`, который сначала
+  пытается base slug, затем `.v2`, `.v3` … вплоть до первого свободного.
+  В случае коллизии при save (race) — `DOC_ID_CONFLICT` → section failed.
+- **Lineage policy.** Каждая generated card связана с исходной `ParsedSection`
+  через `RAGCardSourceLinkDTO(relation_type=GENERATED_FROM)`. Дополнительно
+  оркестратор пишет `LineageRelationType.GENERATED_FROM` от
+  `SourceDocument → RAGCard` через `SourceLifecycleService.link_artifact` —
+  это даёт transitive trace `source_document → parsed_section → rag_card`.
+- **Observability.** 5 audit actions + 4 метрики + 4 типа structured-log
+  событий зарегистрированы (см. SETUP-05 traceability).
+- **Идемпотентность.** Source-link репозиторий — append-only с unique
+  `(doc_id, card_version, source_section_id, relation_type)`; повторный link
+  — no-op.

@@ -503,6 +503,320 @@ export interface ReindexResponse {
   message?: string | null;
 }
 
+// ============================================================
+// SETUP-04 / T-S04-023..026: Document parsing types
+// ============================================================
+
+export type ParseJobStatus =
+  | "created"
+  | "queued"
+  | "running"
+  | "completed"
+  | "partial_success"
+  | "failed"
+  | "cancelled";
+
+export type ParseJobDocumentStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "skipped";
+
+export type ParserStrategy =
+  | "markdown"
+  | "text"
+  | "csv"
+  | "json"
+  | "pdf_text"
+  | "docx"
+  | "xlsx";
+
+export type ParseErrorCode =
+  | "UNSUPPORTED_PARSE_FORMAT"
+  | "RAW_FILE_NOT_FOUND"
+  | "TEXT_EXTRACTION_FAILED"
+  | "PDF_TEXT_LAYER_NOT_FOUND"
+  | "DOCX_EXTRACTION_FAILED"
+  | "TABLE_EXTRACTION_FAILED"
+  | "JSON_PARSE_FAILED"
+  | "SECTION_DETECTION_FAILED"
+  | "SECTION_SAVE_FAILED"
+  | "PARSE_TIMEOUT"
+  | "NO_PARSEABLE_DOCUMENTS"
+  | "DOCUMENT_NOT_PARSEABLE_STATUS"
+  | "PARSE_JOB_ALREADY_RUNNING";
+
+export type SectionType =
+  | "task"
+  | "schema"
+  | "analytics"
+  | "glossary"
+  | "validation_rule"
+  | "question_template"
+  | "other"
+  | "unknown";
+
+export type ParsedSectionStatus =
+  | "extracted"
+  | "classified"
+  | "low_confidence"
+  | "failed";
+
+export interface CreateParseJobRequest {
+  config?: Record<string, unknown> | null;
+}
+
+export interface ParseJobResponse {
+  parse_job_id: string;
+  setup_job_id: string;
+  status: ParseJobStatus;
+  total_documents: number;
+  processed_documents: number;
+  failed_documents: number;
+  total_sections: number;
+  low_confidence_sections: number;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+  error_code: ParseErrorCode | null;
+  error_message: string | null;
+}
+
+export interface DocumentParseReportDTO {
+  source_document_id: string;
+  status: ParseJobDocumentStatus;
+  parser_strategy: ParserStrategy | null;
+  sections_count: number;
+  sections_by_type: Record<string, number>;
+  low_confidence_sections: number;
+  errors: Array<Record<string, unknown>>;
+  warnings: Array<Record<string, unknown>>;
+  created_at: string;
+}
+
+export interface ParseJobReportResponse {
+  parse_job_id: string;
+  setup_job_id: string;
+  status: ParseJobStatus;
+  documents: DocumentParseReportDTO[];
+}
+
+export interface ParsedSectionListItemDTO {
+  section_id: string;
+  source_document_id: string;
+  title: string;
+  section_type: SectionType;
+  section_status: ParsedSectionStatus;
+  confidence: number | null;
+  heading_path: string[];
+  section_index: number;
+  parent_section_id: string | null;
+  content_hash: string;
+}
+
+export interface ParsedSectionsResponse {
+  parse_job_id: string;
+  items: ParsedSectionListItemDTO[];
+  pagination: PaginationDTO;
+}
+
+export interface CancelParseJobResponse {
+  parse_job_id: string;
+  status: ParseJobStatus;
+  message: string;
+}
+
+export interface RetryParseDocumentResponse {
+  parse_job_id: string;
+  source_document_id: string;
+  status: ParseJobDocumentStatus;
+  message: string;
+  new_parse_job_id: string | null;
+}
+
+// ============================================================
+// SETUP-05 RAG cards generation (T-S05-033)
+// ============================================================
+
+export type RAGCardGenerationJobStatus =
+  | "created"
+  | "queued"
+  | "running"
+  | "partial_success"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type CardConfidenceLevel = "high" | "medium" | "low";
+
+export type DocType =
+  | "schema_card"
+  | "task_card"
+  | "analytics_card"
+  | "field_definition_card"
+  | "feature_pattern_card"
+  | "validation_rule_card"
+  | "question_template_card";
+
+export type CardStatus =
+  | "draft"
+  | "generated"
+  | "generation_failed"
+  | "metadata_incomplete"
+  | "body_empty"
+  | "low_confidence"
+  | "review_required"
+  | "ready_for_metadata_validation"
+  | "metadata_validated"
+  | "approved"
+  | "rejected"
+  | "chunked"
+  | "embedded"
+  | "indexed"
+  | "published"
+  | "deprecated";
+
+export interface GenerateRAGCardsOptions {
+  confidence_threshold?: number | null;
+  allow_multiple_cards_per_section?: boolean;
+  mark_low_confidence_as_review_required?: boolean;
+  save_llm_trace?: boolean;
+}
+
+export interface GenerateRAGCardsRequest {
+  section_ids?: string[] | null;
+  source_document_ids?: string[] | null;
+  generation_mode?: "llm" | "template" | "hybrid";
+  ontology_version?: string;
+  metadata_schema_version?: string;
+  prompt_template_version?: string;
+  llm_model?: string;
+  options?: GenerateRAGCardsOptions;
+  generation_request_id?: string | null;
+}
+
+export interface RAGCardGenerationJobResponse {
+  generation_job_id: string;
+  setup_job_id: string;
+  requested_by: string;
+  status: RAGCardGenerationJobStatus;
+  total_sections: number;
+  processed_sections: number;
+  generated_cards: number;
+  failed_sections: number;
+  review_required_cards: number;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+  error_code: string | null;
+  error_message: string | null;
+  config: Record<string, unknown>;
+}
+
+export interface CardGenerationSummaryDTO {
+  total_sections: number;
+  processed_sections: number;
+  generated_cards: number;
+  failed_sections: number;
+  review_required_cards: number;
+  cards_by_type: Record<string, number>;
+}
+
+export interface RAGCardGenerationReportResponse {
+  generation_report_id: string;
+  generation_job_id: string;
+  status: RAGCardGenerationJobStatus;
+  summary: CardGenerationSummaryDTO;
+  errors: Array<Record<string, unknown>>;
+  warnings: Array<Record<string, unknown>>;
+  created_at: string;
+}
+
+export interface RAGCardListItem {
+  doc_id: string;
+  setup_job_id: string;
+  card_version: string;
+  doc_type: string;
+  title: string;
+  status: string;
+  confidence_level: string | null;
+  primary_source_section_id: string | null;
+  source_document_ids: string[];
+  retrieval_tags: string[];
+  created_at: string;
+  updated_at: string;
+  review_required_reason: string | null;
+}
+
+export interface RAGCardListResponse {
+  setup_job_id: string;
+  items: RAGCardListItem[];
+  pagination: PaginationDTO;
+}
+
+export interface RAGCardSourceTraceDTO {
+  source_link_id: string;
+  source_document_id: string;
+  source_section_id: string;
+  relation_type: string;
+}
+
+export interface RAGCardDetails {
+  doc_id: string;
+  setup_job_id: string;
+  card_version: string;
+  doc_type: string;
+  title: string;
+  status: string;
+  confidence_level: string | null;
+  front_matter: Record<string, unknown>;
+  body_markdown: string;
+  source_document_ids: string[];
+  source_section_ids: string[];
+  review_required_reason: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  markdown_artifact_id: string | null;
+  available_versions: string[];
+}
+
+export interface RAGCardPreview {
+  doc_id: string;
+  card_version: string;
+  doc_type: string;
+  title: string;
+  status: string;
+  confidence_level: string | null;
+  front_matter: Record<string, unknown>;
+  body_markdown: string;
+  source_trace: RAGCardSourceTraceDTO[];
+}
+
+export interface RegenerateRAGCardRequest {
+  reason: string;
+  override_doc_type?: string | null;
+  regenerate_request_id?: string | null;
+}
+
+export interface RegenerateRAGCardResponse {
+  doc_id: string;
+  new_card_version: string;
+  generation_job_id: string;
+  status: RAGCardGenerationJobStatus;
+  message: string;
+}
+
+export interface CancelRAGCardJobResponse {
+  generation_job_id: string;
+  status: RAGCardGenerationJobStatus;
+  message: string;
+}
+
 export interface ApiErrorDetail {
   detail: string;
 }

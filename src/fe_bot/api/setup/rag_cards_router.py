@@ -30,6 +30,7 @@ from schemas.setup.rag_setup_job import RAGSetupJob
 # Use dependency factory directly to avoid circular import with InMemoryRAGCardRegistry.
 from fe_bot.api.dependencies import _card_registry as _card_registry_default  # noqa: E402
 from fe_bot.api.dependencies import (
+    get_audit_service,
     get_card_generation_report_repo,
     get_orchestrator,
     get_rag_card_job_repo,
@@ -37,6 +38,7 @@ from fe_bot.api.dependencies import (
     get_rag_card_source_link_repo,
     require_permission,
 )
+from fe_bot.audit.service import AuditAction, AuditService
 from fe_bot.api.setup.rag_cards_dto import (
     CancelRAGCardJobResponse,
     CardGenerationSummaryDTO,
@@ -559,6 +561,7 @@ def regenerate_rag_card(
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
     rag_orchestrator: RAGCardGenerationOrchestrator = Depends(get_rag_card_orchestrator),
     card_registry: InMemoryRAGCardRegistry = Depends(get_card_registry),
+    audit_service: AuditService = Depends(get_audit_service),
 ) -> RegenerateRAGCardResponse:
     _load_setup_job(
         orchestrator=orchestrator,
@@ -607,9 +610,23 @@ def regenerate_rag_card(
     except NoSectionsReadyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    new_version = f"{int(latest.card_version.split('.')[0]) + 1}.0"
+    audit_service.record(
+        actor_id=principal.user_id,
+        action=AuditAction.RAG_CARD_REGENERATE_TRIGGERED,
+        target_type="rag_card",
+        target_id=doc_id,
+        setup_job_id=setup_job_id,
+        payload={
+            "generation_job_id": job.generation_job_id,
+            "previous_card_version": latest.card_version,
+            "new_card_version": new_version,
+            "reason": payload.reason,
+        },
+    )
     return RegenerateRAGCardResponse(
         doc_id=doc_id,
-        new_card_version=f"{int(latest.card_version.split('.')[0]) + 1}.0",
+        new_card_version=new_version,
         generation_job_id=job.generation_job_id,
         status=job.status,
         message="Regeneration job created. Run job to materialize new card_version.",
@@ -632,6 +649,7 @@ def cancel_rag_card_generation_job(
     principal: Principal = Depends(require_permission(Permission.KB_RAG_CARD_GENERATE)),
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
     job_repo: InMemoryRAGCardGenerationJobRepository = Depends(get_rag_card_job_repo),
+    audit_service: AuditService = Depends(get_audit_service),
 ) -> CancelRAGCardJobResponse:
     _load_setup_job(
         orchestrator=orchestrator,
@@ -657,6 +675,14 @@ def cancel_rag_card_generation_job(
     job.finished_at = datetime.now(tz=UTC)
     job.updated_at = job.finished_at
     job_repo.update(job)
+    audit_service.record(
+        actor_id=principal.user_id,
+        action=AuditAction.RAG_CARD_GENERATION_CANCELLED,
+        target_type="rag_card_generation_job",
+        target_id=generation_job_id,
+        setup_job_id=setup_job_id,
+        payload={"cancelled_at": job.finished_at.isoformat()},
+    )
     return CancelRAGCardJobResponse(
         generation_job_id=job.generation_job_id,
         status=job.status,

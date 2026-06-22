@@ -433,6 +433,18 @@ def auth_headers() -> dict[str, str]:
 
 
 @pytest.fixture
+def audit_log(app_with_clean_state: FastAPI) -> InMemoryAuditLog:
+    """Доступ к audit log конкретного теста (T-S05-039)."""
+    return app_with_clean_state.dependency_overrides[get_audit_log]()
+
+
+@pytest.fixture
+def metrics_registry(app_with_clean_state: FastAPI) -> MetricsRegistry:
+    """Доступ к metrics registry конкретного теста (T-S05-039)."""
+    return app_with_clean_state.dependency_overrides[get_metrics]()
+
+
+@pytest.fixture
 def admin_headers() -> dict[str, str]:
     return {"X-User-Id": "admin1", "X-Roles": "admin"}
 
