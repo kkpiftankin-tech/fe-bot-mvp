@@ -9,6 +9,7 @@ from collections.abc import Callable
 
 from fastapi import Depends, Header, HTTPException, status
 from schemas.setup.parse_job import ParserStrategy as ParserStrategyEnum
+from schemas.setup.parsed_section import ParsedSection
 
 from fe_bot.audit.service import AuditService, InMemoryAuditLog
 from fe_bot.auth.permissions import Permission
@@ -24,6 +25,7 @@ from fe_bot.retrieval.service import RetrievalService
 from fe_bot.setup.card_generator.service import (
     RAGCardFallbackGenerator,
     RAGCardGenerator,
+    RAGCardGeneratorResult,
 )
 from fe_bot.setup.card_registry.service import InMemoryRAGCardRegistry
 from fe_bot.setup.card_review.service import RAGCardReviewService
@@ -119,10 +121,40 @@ _parser_service = DocumentParserService(
     source_registry=_source_registry,
 )
 _llm_gateway = LLMGateway()
-_card_generator = RAGCardGenerator(
-    llm_gateway=_llm_gateway,
-    fallback_generator=RAGCardFallbackGenerator(),
-)
+
+
+def _is_force_fallback() -> bool:
+    """Перечисляемые truthy: 1 / true / yes / on (case-insensitive)."""
+    import os
+
+    return os.environ.get("FE_BOT_FORCE_FALLBACK", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+class _FallbackOnlyCardGenerator(RAGCardGenerator):
+    """Bypass LLM entirely — used when FE_BOT_FORCE_FALLBACK is set.
+
+    Карточки сразу попадают в review_required, но pipeline не ждёт Ollama.
+    """
+
+    def __init__(self) -> None:
+        self._fallback_impl = RAGCardFallbackGenerator()
+
+    def generate(self, section: ParsedSection) -> RAGCardGeneratorResult:
+        return self._fallback_impl.generate(section)
+
+
+if _is_force_fallback():
+    _card_generator: RAGCardGenerator = _FallbackOnlyCardGenerator()
+else:
+    _card_generator = RAGCardGenerator(
+        llm_gateway=_llm_gateway,
+        fallback_generator=RAGCardFallbackGenerator(),
+    )
 _card_registry = InMemoryRAGCardRegistry()
 _metadata_validation = MetadataValidationService(registry=_card_registry)
 _card_review = RAGCardReviewService(registry=_card_registry)
@@ -178,6 +210,84 @@ _document_parser_orchestrator = DocumentParserOrchestrator(
     report_repo=_parse_report_repo,
     parser_registry=_parser_registry,
     classifier=_section_classifier,
+    source_lifecycle=_source_lifecycle,
+    artifact_storage=_artifact_storage,
+    event_bus=_event_bus,
+    audit_service=_audit_service,
+    metrics=_metrics,
+)
+
+# SETUP-05 RAG Card Generation singletons (T-S05-025).
+from fe_bot.setup.rag_card_generation.confidence_calculator import (  # noqa: E402
+    ConfidenceCalculator as _ConfidenceCalculator,
+)
+from fe_bot.setup.rag_card_generation.doc_id_generator import (  # noqa: E402
+    DocIdGenerator as _DocIdGenerator,
+)
+from fe_bot.setup.rag_card_generation.doc_type_detector import (  # noqa: E402
+    DocTypeDetector as _DocTypeDetector,
+)
+from fe_bot.setup.rag_card_generation.job_repository import (  # noqa: E402
+    InMemoryRAGCardGenerationJobRepository as _RAGJobRepo,
+)
+from fe_bot.setup.rag_card_generation.job_section_repository import (  # noqa: E402
+    InMemoryRAGCardGenerationJobSectionRepository as _RAGSectionRepo,
+)
+from fe_bot.setup.rag_card_generation.llm_adapter import (  # noqa: E402
+    LLMCardAdapter as _LLMCardAdapter,
+)
+from fe_bot.setup.rag_card_generation.metadata_extractor import (  # noqa: E402
+    MetadataExtractor as _MetadataExtractor,
+)
+from fe_bot.setup.rag_card_generation.ontology_mapper import (  # noqa: E402
+    OntologyMapper as _OntologyMapper,
+)
+from fe_bot.setup.rag_card_generation.orchestrator import (  # noqa: E402
+    RAGCardGenerationOrchestrator as _RAGCardOrchestrator,
+)
+from fe_bot.setup.rag_card_generation.precheck import (  # noqa: E402
+    CardValidationPrecheck as _CardValidationPrecheck,
+)
+from fe_bot.setup.rag_card_generation.prompt_registry import (  # noqa: E402
+    PromptTemplateRegistry as _PromptTemplateRegistry,
+)
+from fe_bot.setup.rag_card_generation.report_repository import (  # noqa: E402
+    InMemoryCardGenerationReportRepository as _CardReportRepo,
+)
+from fe_bot.setup.rag_card_generation.source_link_repository import (  # noqa: E402
+    InMemoryRAGCardSourceLinkRepository as _RAGSourceLinkRepo,
+)
+
+_rag_card_job_repo = _RAGJobRepo()
+_rag_card_section_repo = _RAGSectionRepo()
+_rag_card_source_link_repo = _RAGSourceLinkRepo()
+_card_generation_report_repo = _CardReportRepo()
+_ontology_mapper = _OntologyMapper()
+_prompt_template_registry = _PromptTemplateRegistry()
+_doc_type_detector = _DocTypeDetector()
+_metadata_extractor = _MetadataExtractor()
+_doc_id_generator = _DocIdGenerator()
+_card_validation_precheck = _CardValidationPrecheck()
+_confidence_calculator = _ConfidenceCalculator()
+_llm_card_adapter = _LLMCardAdapter(
+    llm_gateway=_llm_gateway,
+    fallback_generator=None,  # rule-based fallback подключается позже (S5 wiring).
+)
+_rag_card_orchestrator = _RAGCardOrchestrator(
+    job_repo=_rag_card_job_repo,
+    job_section_repo=_rag_card_section_repo,
+    card_registry=_card_registry,
+    source_link_repo=_rag_card_source_link_repo,
+    report_repo=_card_generation_report_repo,
+    parsed_section_repo=_parsed_section_repo,
+    ontology_mapper=_ontology_mapper,
+    prompt_registry=_prompt_template_registry,
+    doc_type_detector=_doc_type_detector,
+    metadata_extractor=_metadata_extractor,
+    doc_id_generator=_doc_id_generator,
+    llm_card_adapter=_llm_card_adapter,
+    precheck=_card_validation_precheck,
+    confidence_calculator=_confidence_calculator,
     source_lifecycle=_source_lifecycle,
     artifact_storage=_artifact_storage,
     event_bus=_event_bus,
@@ -340,6 +450,37 @@ def get_principal(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(exc),
         ) from exc
+
+
+# SETUP-05 DI factories.
+
+
+def get_rag_card_orchestrator() -> _RAGCardOrchestrator:
+    return _rag_card_orchestrator
+
+
+def get_rag_card_job_repo() -> _RAGJobRepo:
+    return _rag_card_job_repo
+
+
+def get_rag_card_section_repo() -> _RAGSectionRepo:
+    return _rag_card_section_repo
+
+
+def get_rag_card_source_link_repo() -> _RAGSourceLinkRepo:
+    return _rag_card_source_link_repo
+
+
+def get_card_generation_report_repo() -> _CardReportRepo:
+    return _card_generation_report_repo
+
+
+def get_ontology_mapper() -> _OntologyMapper:
+    return _ontology_mapper
+
+
+def get_prompt_template_registry() -> _PromptTemplateRegistry:
+    return _prompt_template_registry
 
 
 def require_permission(
