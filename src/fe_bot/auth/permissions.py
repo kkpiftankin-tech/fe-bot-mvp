@@ -36,6 +36,13 @@ class Permission(StrEnum):
     KB_PARSE_RETRY = "kb.parse.retry"
     KB_PARSE_CANCEL = "kb.parse.cancel"
 
+    # SETUP-05 / T-S05-026: RAG card generation permissions family.
+    KB_RAG_CARD_GENERATE = "kb.rag_card.generate"
+    KB_RAG_CARD_READ = "kb.rag_card.read"
+    KB_RAG_CARD_REGENERATE = "kb.rag_card.regenerate"
+    KB_RAG_CARD_PREVIEW = "kb.rag_card.preview"
+    KB_RAG_CARD_LINEAGE_READ = "kb.rag_card.lineage.read"
+
 
 class Role(StrEnum):
     USER = "user"
@@ -64,6 +71,10 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_PARSE_RUN,
             Permission.KB_PARSE_STATUS_READ,
             Permission.KB_SECTION_READ,
+            # SETUP-05: user может генерировать карточки и читать preview.
+            Permission.KB_RAG_CARD_GENERATE,
+            Permission.KB_RAG_CARD_READ,
+            Permission.KB_RAG_CARD_PREVIEW,
         }
     ),
     Role.DOMAIN_EXPERT: frozenset(
@@ -85,6 +96,12 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_PARSE_STATUS_READ,
             Permission.KB_SECTION_READ,
             Permission.KB_PARSE_RETRY,
+            # SETUP-05: эксперт может регенерировать карточки и читать lineage.
+            Permission.KB_RAG_CARD_GENERATE,
+            Permission.KB_RAG_CARD_READ,
+            Permission.KB_RAG_CARD_PREVIEW,
+            Permission.KB_RAG_CARD_REGENERATE,
+            Permission.KB_RAG_CARD_LINEAGE_READ,
         }
     ),
     Role.RAG_ADMIN: frozenset(
@@ -109,6 +126,12 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_SECTION_READ,
             Permission.KB_PARSE_RETRY,
             Permission.KB_PARSE_CANCEL,
+            # SETUP-05: RAG-админ — полный доступ к card generation.
+            Permission.KB_RAG_CARD_GENERATE,
+            Permission.KB_RAG_CARD_READ,
+            Permission.KB_RAG_CARD_PREVIEW,
+            Permission.KB_RAG_CARD_REGENERATE,
+            Permission.KB_RAG_CARD_LINEAGE_READ,
         }
     ),
     Role.ADMIN: frozenset(Permission),  # все
@@ -123,6 +146,10 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             # SETUP-04: auditor видит статус парсинга и секции.
             Permission.KB_PARSE_STATUS_READ,
             Permission.KB_SECTION_READ,
+            # SETUP-05: auditor видит карточки + preview + lineage (read-only).
+            Permission.KB_RAG_CARD_READ,
+            Permission.KB_RAG_CARD_PREVIEW,
+            Permission.KB_RAG_CARD_LINEAGE_READ,
         }
     ),
 }

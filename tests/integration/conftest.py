@@ -286,9 +286,128 @@ def app_with_clean_state() -> FastAPI:
     app.dependency_overrides[get_parse_document_repo] = lambda: parse_doc_repo
     app.dependency_overrides[get_parsed_section_repo] = lambda: parsed_section_repo
     app.dependency_overrides[get_parse_report_repo] = lambda: parse_report_repo
-    app.dependency_overrides[get_document_parser_orchestrator] = (
-        lambda: parser_orchestrator
+    app.dependency_overrides[get_document_parser_orchestrator] = lambda: parser_orchestrator
+
+    # SETUP-05 RAG card generation wiring (T-S05-026..032).
+    from fe_bot.api.dependencies import (
+        get_card_generation_report_repo,
+        get_ontology_mapper,
+        get_prompt_template_registry,
+        get_rag_card_job_repo,
+        get_rag_card_orchestrator,
+        get_rag_card_section_repo,
+        get_rag_card_source_link_repo,
     )
+    from fe_bot.api.setup.rag_cards_router import get_card_registry as _get_card_reg_router
+    from fe_bot.setup.rag_card_generation.confidence_calculator import (
+        ConfidenceCalculator as _ConfCalc05,
+    )
+    from fe_bot.setup.rag_card_generation.doc_id_generator import (
+        DocIdGenerator as _DocId05,
+    )
+    from fe_bot.setup.rag_card_generation.doc_type_detector import (
+        DocTypeDetector as _DocType05,
+    )
+    from fe_bot.setup.rag_card_generation.job_repository import (
+        InMemoryRAGCardGenerationJobRepository as _RAGJob05,
+    )
+    from fe_bot.setup.rag_card_generation.job_section_repository import (
+        InMemoryRAGCardGenerationJobSectionRepository as _RAGSec05,
+    )
+    from fe_bot.setup.rag_card_generation.llm_adapter import (
+        FallbackGenerator as _Fallback05,
+    )
+    from fe_bot.setup.rag_card_generation.llm_adapter import (
+        LLMCardAdapter as _LLMA05,
+    )
+    from fe_bot.setup.rag_card_generation.metadata_extractor import (
+        MetadataExtractor as _MetaExt05,
+    )
+    from fe_bot.setup.rag_card_generation.ontology_mapper import (
+        OntologyMapper as _Onto05,
+    )
+    from fe_bot.setup.rag_card_generation.orchestrator import (
+        RAGCardGenerationOrchestrator as _RAGOrch05,
+    )
+    from fe_bot.setup.rag_card_generation.precheck import (
+        CardValidationPrecheck as _Prech05,
+    )
+    from fe_bot.setup.rag_card_generation.precheck import (
+        RAGCardDraft as _Draft05,
+    )
+    from fe_bot.setup.rag_card_generation.prompt_registry import (
+        PromptTemplateRegistry as _PromptReg05,
+    )
+    from fe_bot.setup.rag_card_generation.report_repository import (
+        InMemoryCardGenerationReportRepository as _CRR05,
+    )
+    from fe_bot.setup.rag_card_generation.source_link_repository import (
+        InMemoryRAGCardSourceLinkRepository as _SL05,
+    )
+
+    class _IntegrationFallback(_Fallback05):
+        """Deterministic fallback для integration-тестов (без Ollama)."""
+
+        def generate_draft(self, prompt: str, *, doc_type: str) -> _Draft05:
+            return _Draft05(
+                doc_id="placeholder.x.v1",
+                doc_type=doc_type,
+                title="Section card",
+                body_markdown="Generated section body for the RAG card. " * 3,
+                front_matter={
+                    "doc_id": "placeholder.x.v1",
+                    "doc_type": doc_type,
+                    "domain": ["naval"],
+                    "phase": ["feature_synthesis"],
+                },
+                source_files=["src.md"],
+                source_sections=["sec_001"],
+                retrieval_tags=["sensor", "uptime"],
+            )
+
+    class _NoLLMGateway:
+        def generate_structured(self, **_kwargs):  # type: ignore[no-untyped-def]
+            from fe_bot.llm_gateway.exceptions import LLMUnavailableError
+
+            raise LLMUnavailableError("integration tests use fallback only")
+
+    rag_job_repo = _RAGJob05()
+    rag_sec_repo = _RAGSec05()
+    rag_link_repo = _SL05()
+    rag_report_repo = _CRR05()
+    rag_llm = _LLMA05(
+        llm_gateway=_NoLLMGateway(),  # type: ignore[arg-type]
+        fallback_generator=_IntegrationFallback(),
+    )
+    rag_orchestrator = _RAGOrch05(
+        job_repo=rag_job_repo,
+        job_section_repo=rag_sec_repo,
+        card_registry=card_registry,
+        source_link_repo=rag_link_repo,
+        report_repo=rag_report_repo,
+        parsed_section_repo=parsed_section_repo,
+        ontology_mapper=_Onto05(),
+        prompt_registry=_PromptReg05(),
+        doc_type_detector=_DocType05(),
+        metadata_extractor=_MetaExt05(),
+        doc_id_generator=_DocId05(),
+        llm_card_adapter=rag_llm,
+        precheck=_Prech05(),
+        confidence_calculator=_ConfCalc05(),
+        source_lifecycle=source_lifecycle,
+        artifact_storage=storage,
+        event_bus=bus,
+        audit_service=audit_svc,
+        metrics=metrics_registry,
+    )
+    app.dependency_overrides[get_rag_card_orchestrator] = lambda: rag_orchestrator
+    app.dependency_overrides[get_rag_card_job_repo] = lambda: rag_job_repo
+    app.dependency_overrides[get_rag_card_section_repo] = lambda: rag_sec_repo
+    app.dependency_overrides[get_rag_card_source_link_repo] = lambda: rag_link_repo
+    app.dependency_overrides[get_card_generation_report_repo] = lambda: rag_report_repo
+    app.dependency_overrides[get_ontology_mapper] = lambda: _Onto05()
+    app.dependency_overrides[get_prompt_template_registry] = lambda: _PromptReg05()
+    app.dependency_overrides[_get_card_reg_router] = lambda: card_registry
     yield app
     app.dependency_overrides.clear()
     # Очистка module-level singletons (на всякий случай для других тестов).

@@ -49,6 +49,10 @@ class TestPermissionsMatrix:
                 # SETUP-04: auditor видит статус парсинга и секции (read-only).
                 Permission.KB_PARSE_STATUS_READ,
                 Permission.KB_SECTION_READ,
+                # SETUP-05: auditor видит карточки + preview + lineage (read-only).
+                Permission.KB_RAG_CARD_READ,
+                Permission.KB_RAG_CARD_PREVIEW,
+                Permission.KB_RAG_CARD_LINEAGE_READ,
             }
         )
 
