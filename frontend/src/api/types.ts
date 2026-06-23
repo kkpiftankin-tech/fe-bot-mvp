@@ -831,3 +831,204 @@ export class ApiError extends Error {
     this.body = body;
   }
 }
+
+// ============================================================
+// SETUP-06 RAG card review (T-S06-029)
+// ============================================================
+
+export type ReviewDecisionStr = "approve" | "reject";
+
+export interface ReviewRAGCardDecisionRequest {
+  review_decision_id?: string | null;
+  card_version?: string | null;
+  decision: ReviewDecisionStr;
+  reason?: string | null;
+  comment?: string | null;
+}
+
+export interface EditRAGCardRequest {
+  expected_version: string;
+  metadata_patch?: Record<string, unknown> | null;
+  body_markdown?: string | null;
+  change_reason?: string | null;
+}
+
+export interface RegenerateRAGCardReviewRequest {
+  reason: string;
+  instruction?: string | null;
+  regenerate_request_id?: string | null;
+}
+
+export interface BulkReviewItem {
+  doc_id: string;
+  card_version: string;
+}
+
+export interface BulkReviewRequest {
+  bulk_review_id?: string | null;
+  decision: "approve";
+  items: BulkReviewItem[];
+  comment?: string | null;
+}
+
+export interface RAGCardReviewListItem {
+  doc_id: string;
+  card_version: string;
+  title: string;
+  doc_type: string;
+  status: string;
+  confidence_level: string | null;
+  source_document_id: string | null;
+  source_section_id: string | null;
+  validation_errors_count: number;
+  warnings_count: number;
+  review_required_reason: string | null;
+  last_reviewed_by: string | null;
+  updated_at: string;
+}
+
+export interface ReviewSummary {
+  total: number;
+  by_status: Record<string, number>;
+}
+
+export interface RAGCardReviewListResponse {
+  setup_job_id: string;
+  items: RAGCardReviewListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  summary: ReviewSummary;
+}
+
+export interface ValidationItemDTO {
+  code: string;
+  message: string;
+}
+
+export interface ValidationReportDTO {
+  critical_errors: ValidationItemDTO[];
+  warnings: ValidationItemDTO[];
+}
+
+export interface ReviewPermissionsDTO {
+  can_approve: boolean;
+  can_reject: boolean;
+  can_edit: boolean;
+  can_regenerate: boolean;
+}
+
+export interface RAGCardReviewDetailsDTO {
+  doc_id: string;
+  card_version: string;
+  title: string;
+  doc_type: string;
+  status: string;
+  confidence_level: string | null;
+  metadata: Record<string, unknown>;
+  body_markdown: string;
+  source_trace: Record<string, unknown>;
+  validation: ValidationReportDTO;
+  review_log_count: number;
+  permissions: ReviewPermissionsDTO;
+}
+
+export interface ApproveResponse {
+  doc_id: string;
+  card_version: string;
+  status: string;
+  review_decision_id: string;
+  reviewed_by: string;
+  reviewed_at: string;
+}
+
+export interface RejectResponse {
+  doc_id: string;
+  card_version: string;
+  status: string;
+  review_decision_id: string;
+  reason: string;
+  reviewed_by: string;
+  reviewed_at: string;
+}
+
+export interface EditResponse {
+  doc_id: string;
+  previous_version: string;
+  new_version: string;
+  status: string;
+  diff_available: boolean;
+  edited_by: string;
+  edited_at: string;
+}
+
+export interface RegenerateReviewResponse {
+  doc_id: string;
+  card_version: string;
+  status: string;
+  regenerate_request_id: string;
+  generation_job_id: string | null;
+  message: string;
+}
+
+export interface BulkReviewItemResult {
+  doc_id: string;
+  status: string;
+  card_version: string | null;
+  error: string | null;
+}
+
+export interface BulkReviewResponse {
+  bulk_review_id: string;
+  total: number;
+  approved: number;
+  errors: number;
+  results: BulkReviewItemResult[];
+}
+
+export interface CardVersionItemDTO {
+  doc_id: string;
+  card_version: string;
+  parent_card_version: string | null;
+  status: string;
+  markdown_artifact_id: string;
+  body_hash: string;
+  created_by: string;
+  created_at: string;
+  change_reason: string | null;
+  is_current: boolean;
+}
+
+export interface RAGCardVersionsResponse {
+  doc_id: string;
+  versions: CardVersionItemDTO[];
+}
+
+export interface CardDiffResponse {
+  doc_id: string;
+  from_version: string;
+  to_version: string;
+  body_changed: boolean;
+  metadata_from: Record<string, unknown>;
+  metadata_to: Record<string, unknown>;
+}
+
+export interface ReviewLogItemDTO {
+  review_log_id: string;
+  setup_job_id: string;
+  doc_id: string;
+  card_version: string;
+  event_type: string;
+  actor_id: string;
+  actor_role: string;
+  message: string;
+  before_status: string | null;
+  after_status: string | null;
+  created_at: string;
+  payload: Record<string, unknown>;
+}
+
+export interface ReviewLogResponse {
+  doc_id: string;
+  items: ReviewLogItemDTO[];
+}
