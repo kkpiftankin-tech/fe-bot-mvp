@@ -184,6 +184,11 @@ def register_default_state(persister: SnapshotPersister) -> None:
     persister.register_repo("rag_card_source_links", deps._rag_card_source_link_repo)
     persister.register_repo("rag_card_generation_reports", deps._card_generation_report_repo)
     persister.register_repo("rag_cards_registry", deps._card_registry)
+    # SETUP-06 (T-S06-011): review state.
+    persister.register_repo("review_decisions", deps._review_decision_repo)
+    persister.register_repo("review_logs", deps._review_log_repo)
+    persister.register_repo("card_versions", deps._card_version_repo)
+    persister.register_repo("edit_locks", deps._edit_lock_repo)
     persister.register_artifact_storage("artifacts", deps._artifact_storage)
 
 

@@ -258,10 +258,30 @@ from fe_bot.setup.rag_card_generation.source_link_repository import (  # noqa: E
     InMemoryRAGCardSourceLinkRepository as _RAGSourceLinkRepo,
 )
 
+# SETUP-06 (T-S06-007..010): review repositories.
+from fe_bot.setup.card_review.decision_repository import (  # noqa: E402
+    InMemoryReviewDecisionRepository as _ReviewDecisionRepo,
+)
+from fe_bot.setup.card_review.edit_lock_repository import (  # noqa: E402
+    InMemoryEditLockRepository as _EditLockRepo,
+)
+from fe_bot.setup.card_review.log_repository import (  # noqa: E402
+    InMemoryReviewLogRepository as _ReviewLogRepo,
+)
+from fe_bot.setup.card_review.version_repository import (  # noqa: E402
+    InMemoryRAGCardVersionRepository as _CardVersionRepo,
+)
+
 _rag_card_job_repo = _RAGJobRepo()
 _rag_card_section_repo = _RAGSectionRepo()
 _rag_card_source_link_repo = _RAGSourceLinkRepo()
 _card_generation_report_repo = _CardReportRepo()
+
+# SETUP-06: review state.
+_review_decision_repo = _ReviewDecisionRepo()
+_review_log_repo = _ReviewLogRepo()
+_card_version_repo = _CardVersionRepo()
+_edit_lock_repo = _EditLockRepo()
 _ontology_mapper = _OntologyMapper()
 _prompt_template_registry = _PromptTemplateRegistry()
 _doc_type_detector = _DocTypeDetector()
@@ -473,6 +493,23 @@ def get_rag_card_source_link_repo() -> _RAGSourceLinkRepo:
 
 def get_card_generation_report_repo() -> _CardReportRepo:
     return _card_generation_report_repo
+
+
+# SETUP-06 (T-S06-023): review repositories.
+def get_review_decision_repo() -> _ReviewDecisionRepo:
+    return _review_decision_repo
+
+
+def get_review_log_repo() -> _ReviewLogRepo:
+    return _review_log_repo
+
+
+def get_card_version_repo() -> _CardVersionRepo:
+    return _card_version_repo
+
+
+def get_edit_lock_repo() -> _EditLockRepo:
+    return _edit_lock_repo
 
 
 def get_ontology_mapper() -> _OntologyMapper:

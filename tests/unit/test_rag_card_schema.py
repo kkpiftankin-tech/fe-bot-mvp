@@ -161,7 +161,8 @@ class TestRAGCard:
         assert card.version == "1.0"
 
     def test_all_card_statuses(self) -> None:
-        # 10 legacy + 6 SETUP-05 lifecycle statuses (см. docs/06-rag/card-lifecycle.md).
+        # 10 legacy + 6 SETUP-05 + 4 SETUP-06 lifecycle statuses
+        # (см. docs/06-rag/card-lifecycle.md).
         assert {s.value for s in CardStatus} == {
             "draft",
             "generated",
@@ -179,6 +180,11 @@ class TestRAGCard:
             "low_confidence",
             "ready_for_metadata_validation",
             "rejected",
+            # SETUP-06:
+            "editing",
+            "edited",
+            "regenerate_requested",
+            "validation_failed",
         }
 
     def test_version_format(self) -> None:

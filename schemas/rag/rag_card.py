@@ -36,6 +36,11 @@ class CardStatus(StrEnum):
     LOW_CONFIDENCE = "low_confidence"
     READY_FOR_METADATA_VALIDATION = "ready_for_metadata_validation"
     REJECTED = "rejected"
+    # SETUP-06 lifecycle statuses (см. docs/02-system/features/SETUP-06-*.md §3).
+    EDITING = "editing"
+    EDITED = "edited"
+    REGENERATE_REQUESTED = "regenerate_requested"
+    VALIDATION_FAILED = "validation_failed"
 
 
 _FORWARD_CARD_TRANSITIONS: dict[CardStatus, frozenset[CardStatus]] = {
@@ -56,6 +61,13 @@ _FORWARD_CARD_TRANSITIONS: dict[CardStatus, frozenset[CardStatus]] = {
             CardStatus.REVIEW_REQUIRED,
             # SETUP-05: переход в ready_for_metadata_validation для SETUP-07.
             CardStatus.READY_FOR_METADATA_VALIDATION,
+            # SETUP-06: review decisions могут применяться к generated карточкам
+            # с high confidence напрямую.
+            CardStatus.APPROVED,
+            CardStatus.REJECTED,
+            CardStatus.EDITED,
+            CardStatus.EDITING,
+            CardStatus.REGENERATE_REQUESTED,
             CardStatus.DEPRECATED,
         }
     ),
@@ -75,11 +87,70 @@ _FORWARD_CARD_TRANSITIONS: dict[CardStatus, frozenset[CardStatus]] = {
             CardStatus.READY_FOR_METADATA_VALIDATION,  # SETUP-06 approval → S07
             CardStatus.REJECTED,
             CardStatus.DRAFT,  # legacy regenerate path
+            # SETUP-06 review actions:
+            CardStatus.EDITING,
+            CardStatus.EDITED,
+            CardStatus.REGENERATE_REQUESTED,
             CardStatus.DEPRECATED,
         }
     ),
-    CardStatus.LOW_CONFIDENCE: frozenset({CardStatus.REVIEW_REQUIRED, CardStatus.DEPRECATED}),
-    CardStatus.METADATA_INCOMPLETE: frozenset({CardStatus.REVIEW_REQUIRED, CardStatus.DEPRECATED}),
+    CardStatus.LOW_CONFIDENCE: frozenset(
+        {
+            CardStatus.REVIEW_REQUIRED,
+            # SETUP-06: low_confidence карточки также могут быть напрямую
+            # rejected/edited/regenerated после human review.
+            CardStatus.APPROVED,
+            CardStatus.REJECTED,
+            CardStatus.EDITED,
+            CardStatus.EDITING,
+            CardStatus.REGENERATE_REQUESTED,
+            CardStatus.DEPRECATED,
+        }
+    ),
+    CardStatus.METADATA_INCOMPLETE: frozenset(
+        {
+            CardStatus.REVIEW_REQUIRED,
+            CardStatus.EDITED,
+            CardStatus.EDITING,
+            CardStatus.REGENERATE_REQUESTED,
+            CardStatus.REJECTED,
+            CardStatus.DEPRECATED,
+        }
+    ),
+    CardStatus.VALIDATION_FAILED: frozenset(
+        {
+            CardStatus.EDITED,
+            CardStatus.EDITING,
+            CardStatus.REGENERATE_REQUESTED,
+            CardStatus.REJECTED,
+            CardStatus.DEPRECATED,
+        }
+    ),
+    CardStatus.EDITING: frozenset(
+        {
+            CardStatus.EDITED,
+            CardStatus.REVIEW_REQUIRED,  # cancel edit → back to review
+            CardStatus.DEPRECATED,
+        }
+    ),
+    CardStatus.EDITED: frozenset(
+        {
+            CardStatus.APPROVED,
+            CardStatus.REJECTED,
+            CardStatus.REGENERATE_REQUESTED,
+            CardStatus.READY_FOR_METADATA_VALIDATION,
+            CardStatus.DEPRECATED,
+        }
+    ),
+    CardStatus.REGENERATE_REQUESTED: frozenset(
+        {
+            # Регенерация создаёт новую версию карточки; текущая обычно становится
+            # deprecated после успешной regeneration.
+            CardStatus.GENERATED,
+            CardStatus.GENERATION_FAILED,
+            CardStatus.DEPRECATED,
+        }
+    ),
     CardStatus.BODY_EMPTY: frozenset({CardStatus.GENERATION_FAILED, CardStatus.DEPRECATED}),
     CardStatus.GENERATION_FAILED: frozenset({CardStatus.DRAFT, CardStatus.DEPRECATED}),
     CardStatus.APPROVED: frozenset(
