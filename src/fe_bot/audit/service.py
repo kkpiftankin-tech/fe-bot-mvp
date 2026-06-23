@@ -72,6 +72,11 @@ class AuditAction(StrEnum):
     RAG_CARD_REVIEW_REQUIRED = "rag_card.review_required"
     RAG_CARD_GENERATION_CANCELLED = "rag_card.generation_cancelled"
 
+    # SETUP-07 / T-S07-009: validation audit actions.
+    VALIDATION_RUN_TRIGGERED = "validation.run_triggered"
+    VALIDATION_REPORT_CREATED = "validation.report_created"
+    VALIDATION_ISSUE_RESOLVED = "validation.issue_resolved"
+
     # Indexing
     CHUNKS_INDEXED = "chunks.indexed"
     INDEX_FAILED = "index.failed"

@@ -282,6 +282,21 @@ _review_decision_repo = _ReviewDecisionRepo()
 _review_log_repo = _ReviewLogRepo()
 _card_version_repo = _CardVersionRepo()
 _edit_lock_repo = _EditLockRepo()
+
+# SETUP-07 (T-S07-010): validation persistence.
+from fe_bot.setup.metadata_validation.report_repository import (  # noqa: E402
+    InMemoryValidationReportRepository as _ValidationReportRepo,
+)
+from fe_bot.setup.metadata_validation.run_repository import (  # noqa: E402
+    InMemoryValidationRunRepository as _ValidationRunRepo,
+)
+from fe_bot.setup.metadata_validation.metrics import (  # noqa: E402
+    ValidationMetricsCollector as _ValidationMetricsCollector,
+)
+
+_validation_report_repo = _ValidationReportRepo()
+_validation_run_repo = _ValidationRunRepo()
+_validation_metrics = _ValidationMetricsCollector(metrics=_metrics)
 _ontology_mapper = _OntologyMapper()
 _prompt_template_registry = _PromptTemplateRegistry()
 _doc_type_detector = _DocTypeDetector()
@@ -337,6 +352,16 @@ _card_review = RAGCardReviewService(
     audit_service=_audit_service,
     metrics=_review_metrics_collector,
     generation_orchestrator=_rag_card_orchestrator,
+)
+
+# SETUP-07 (T-S07-010): rewrite _metadata_validation с full wiring.
+_metadata_validation = MetadataValidationService(
+    registry=_card_registry,
+    report_repo=_validation_report_repo,
+    run_repo=_validation_run_repo,
+    event_bus=_event_bus,
+    audit_service=_audit_service,
+    metrics=_validation_metrics,
 )
 
 
@@ -517,6 +542,15 @@ def get_rag_card_source_link_repo() -> _RAGSourceLinkRepo:
 
 def get_card_generation_report_repo() -> _CardReportRepo:
     return _card_generation_report_repo
+
+
+# SETUP-07 (T-S07-010): validation repositories.
+def get_validation_report_repo() -> _ValidationReportRepo:
+    return _validation_report_repo
+
+
+def get_validation_run_repo() -> _ValidationRunRepo:
+    return _validation_run_repo
 
 
 # SETUP-06 (T-S06-023): review repositories.

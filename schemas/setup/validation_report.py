@@ -57,7 +57,11 @@ class ValidationCheck(BaseModel):
 
 
 class ValidationReport(BaseModel):
-    """Отчёт валидации (DTO-32, минимум)."""
+    """Отчёт валидации (DTO-32).
+
+    SETUP-07 extension: добавлены optional поля для persisted reports:
+    setup_job_id, card_version, policy_used, validation_run_id.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -71,6 +75,11 @@ class ValidationReport(BaseModel):
     repair_instruction: str | None = Field(None, max_length=4000)
     created_at: datetime
     validator_name: str = Field(..., min_length=1)
+    # SETUP-07 (T-S07-002): persisted-report extension.
+    setup_job_id: str | None = Field(default=None, max_length=128)
+    card_version: str | None = Field(default=None, pattern=r"^\d+(\.\d+){0,2}$")
+    policy_used: str | None = Field(default=None, max_length=64)
+    validation_run_id: str | None = Field(default=None, max_length=128)
 
     @property
     def is_passing(self) -> bool:

@@ -189,6 +189,9 @@ def register_default_state(persister: SnapshotPersister) -> None:
     persister.register_repo("review_logs", deps._review_log_repo)
     persister.register_repo("card_versions", deps._card_version_repo)
     persister.register_repo("edit_locks", deps._edit_lock_repo)
+    # SETUP-07 (T-S07-010): validation state.
+    persister.register_repo("validation_reports", deps._validation_report_repo)
+    persister.register_repo("validation_runs", deps._validation_run_repo)
     persister.register_artifact_storage("artifacts", deps._artifact_storage)
 
 
