@@ -315,6 +315,30 @@ _rag_card_orchestrator = _RAGCardOrchestrator(
     metrics=_metrics,
 )
 
+# SETUP-06 (T-S06-023): rewrite _card_review с полной wiring (depends on
+# SETUP-05 _rag_card_orchestrator + SETUP-06 repos).
+from fe_bot.setup.card_review.metrics import (  # noqa: E402
+    ReviewMetricsCollector as _ReviewMetricsCollector,
+)
+from fe_bot.setup.card_review.readiness import (  # noqa: E402
+    ReviewReadinessCalculator as _ReviewReadinessCalculator,
+)
+
+_review_readiness_calculator = _ReviewReadinessCalculator(card_registry=_card_registry)
+_review_metrics_collector = _ReviewMetricsCollector(metrics=_metrics)
+_card_review = RAGCardReviewService(
+    registry=_card_registry,
+    decision_repo=_review_decision_repo,
+    log_repo=_review_log_repo,
+    version_repo=_card_version_repo,
+    edit_lock_repo=_edit_lock_repo,
+    readiness_calculator=_review_readiness_calculator,
+    event_bus=_event_bus,
+    audit_service=_audit_service,
+    metrics=_review_metrics_collector,
+    generation_orchestrator=_rag_card_orchestrator,
+)
+
 
 def get_auth_service() -> AuthService:
     return _auth_service
