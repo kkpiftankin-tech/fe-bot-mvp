@@ -506,6 +506,22 @@ class RAGCardReviewService:
             duration_ms=duration_ms,
         )
 
+        # T-S06-039: structured log.
+        logger.info(
+            "rag_card_review_decision_made",
+            extra={
+                "setup_job_id": sid,
+                "doc_id": doc_id,
+                "card_version": card.card_version or card.version,
+                "reviewer_id": reviewer_id,
+                "decision": "approve",
+                "status_before": card.status.value,
+                "status_after": target_status.value,
+                "duration_ms": duration_ms,
+                "outcome": "success",
+            },
+        )
+
         # Events.
         self._emit(
             RAGCardApprovedEvent(
@@ -599,6 +615,22 @@ class RAGCardReviewService:
 
         self._metrics.record_decision(decision="reject")
         self._metrics.record_rejected(doc_type=card.doc_type.value, reason=reason)
+
+        # T-S06-039: structured log.
+        logger.info(
+            "rag_card_review_decision_made",
+            extra={
+                "setup_job_id": sid,
+                "doc_id": doc_id,
+                "card_version": card.card_version or card.version,
+                "reviewer_id": reviewer_id,
+                "decision": "reject",
+                "reason": reason,
+                "status_before": card.status.value,
+                "status_after": target_status.value,
+                "outcome": "success",
+            },
+        )
 
         self._emit(
             RAGCardRejectedEvent(
@@ -724,6 +756,22 @@ class RAGCardReviewService:
 
         self._metrics.record_decision(decision="edit")
         self._metrics.record_edited(doc_type=card.doc_type.value)
+
+        # T-S06-039: structured log per edit.
+        logger.info(
+            "rag_card_edited",
+            extra={
+                "setup_job_id": sid,
+                "doc_id": doc_id,
+                "previous_card_version": current_version,
+                "new_card_version": new_version_dto.card_version,
+                "reviewer_id": reviewer_id,
+                "metadata_changed": draft.metadata_changed,
+                "body_changed": draft.body_changed,
+                "change_reason": change_reason,
+                "outcome": "success",
+            },
+        )
 
         self._emit(
             RAGCardEditedEvent(
@@ -864,6 +912,21 @@ class RAGCardReviewService:
         self._metrics.record_decision(decision="regenerate")
         self._metrics.record_regenerate_requested(doc_type=card.doc_type.value)
 
+        # T-S06-039: structured log per regenerate.
+        logger.info(
+            "rag_card_regenerate_requested",
+            extra={
+                "setup_job_id": sid,
+                "doc_id": doc_id,
+                "card_version": card.card_version or card.version,
+                "regenerate_request_id": request_id,
+                "generation_job_id": gen_job_id or "(unavailable)",
+                "reviewer_id": reviewer_id,
+                "reason": reason,
+                "outcome": "success",
+            },
+        )
+
         self._emit(
             RAGCardRegenerateRequestedEvent(
                 event_id=_gen_id("evt"),
@@ -929,6 +992,20 @@ class RAGCardReviewService:
                         "error": str(exc),
                     }
                 )
+
+        # T-S06-039: structured log per bulk.
+        logger.info(
+            "rag_card_bulk_review_completed",
+            extra={
+                "setup_job_id": setup_job_id,
+                "bulk_review_id": bulk_id,
+                "total": len(items),
+                "approved": success_count,
+                "errors": len(items) - success_count,
+                "reviewer_id": reviewer_id,
+                "outcome": "success" if success_count == len(items) else "partial",
+            },
+        )
 
         return {
             "bulk_review_id": bulk_id,
