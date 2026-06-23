@@ -53,6 +53,13 @@ class TestPermissionsMatrix:
                 Permission.KB_RAG_CARD_READ,
                 Permission.KB_RAG_CARD_PREVIEW,
                 Permission.KB_RAG_CARD_LINEAGE_READ,
+                # SETUP-06: auditor — read-only по review log/versions/diff.
+                Permission.KB_RAG_CARD_LIST,
+                Permission.KB_RAG_CARD_VERSION_READ,
+                Permission.KB_RAG_CARD_DIFF_READ,
+                Permission.KB_RAG_CARD_REVIEW_LOG_READ,
+                Permission.KB_RAG_CARD_VALIDATION_READ,
+                Permission.KB_RAG_CARD_SOURCE_TRACE_READ,
             }
         )
 

@@ -43,6 +43,18 @@ class Permission(StrEnum):
     KB_RAG_CARD_PREVIEW = "kb.rag_card.preview"
     KB_RAG_CARD_LINEAGE_READ = "kb.rag_card.lineage.read"
 
+    # SETUP-06 / T-S06-024: RAG card review permissions family.
+    KB_RAG_CARD_LIST = "kb.rag_card.list"
+    KB_RAG_CARD_EDIT = "kb.rag_card.edit"
+    KB_RAG_CARD_APPROVE = "kb.rag_card.approve"
+    KB_RAG_CARD_REJECT = "kb.rag_card.reject"
+    KB_RAG_CARD_VERSION_READ = "kb.rag_card.version.read"
+    KB_RAG_CARD_DIFF_READ = "kb.rag_card.diff.read"
+    KB_RAG_CARD_REVIEW_LOG_READ = "kb.rag_card.review_log.read"
+    KB_RAG_CARD_VALIDATION_READ = "kb.rag_card.validation.read"
+    KB_RAG_CARD_SOURCE_TRACE_READ = "kb.rag_card.source_trace.read"
+    KB_RAG_CARD_BULK_REVIEW = "kb.rag_card.bulk_review"
+
 
 class Role(StrEnum):
     USER = "user"
@@ -75,6 +87,17 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_RAG_CARD_GENERATE,
             Permission.KB_RAG_CARD_READ,
             Permission.KB_RAG_CARD_PREVIEW,
+            # SETUP-06: user может проверять, принимать, отклонять и редактировать
+            # карточки своих setup jobs.
+            Permission.KB_RAG_CARD_LIST,
+            Permission.KB_RAG_CARD_APPROVE,
+            Permission.KB_RAG_CARD_REJECT,
+            Permission.KB_RAG_CARD_EDIT,
+            Permission.KB_RAG_CARD_VERSION_READ,
+            Permission.KB_RAG_CARD_DIFF_READ,
+            Permission.KB_RAG_CARD_REVIEW_LOG_READ,
+            Permission.KB_RAG_CARD_VALIDATION_READ,
+            Permission.KB_RAG_CARD_SOURCE_TRACE_READ,
         }
     ),
     Role.DOMAIN_EXPERT: frozenset(
@@ -102,6 +125,16 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_RAG_CARD_PREVIEW,
             Permission.KB_RAG_CARD_REGENERATE,
             Permission.KB_RAG_CARD_LINEAGE_READ,
+            # SETUP-06: эксперт — полный review-цикл.
+            Permission.KB_RAG_CARD_LIST,
+            Permission.KB_RAG_CARD_APPROVE,
+            Permission.KB_RAG_CARD_REJECT,
+            Permission.KB_RAG_CARD_EDIT,
+            Permission.KB_RAG_CARD_VERSION_READ,
+            Permission.KB_RAG_CARD_DIFF_READ,
+            Permission.KB_RAG_CARD_REVIEW_LOG_READ,
+            Permission.KB_RAG_CARD_VALIDATION_READ,
+            Permission.KB_RAG_CARD_SOURCE_TRACE_READ,
         }
     ),
     Role.RAG_ADMIN: frozenset(
@@ -132,6 +165,17 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_RAG_CARD_PREVIEW,
             Permission.KB_RAG_CARD_REGENERATE,
             Permission.KB_RAG_CARD_LINEAGE_READ,
+            # SETUP-06: RAG-админ — полный review-цикл + bulk approve.
+            Permission.KB_RAG_CARD_LIST,
+            Permission.KB_RAG_CARD_APPROVE,
+            Permission.KB_RAG_CARD_REJECT,
+            Permission.KB_RAG_CARD_EDIT,
+            Permission.KB_RAG_CARD_VERSION_READ,
+            Permission.KB_RAG_CARD_DIFF_READ,
+            Permission.KB_RAG_CARD_REVIEW_LOG_READ,
+            Permission.KB_RAG_CARD_VALIDATION_READ,
+            Permission.KB_RAG_CARD_SOURCE_TRACE_READ,
+            Permission.KB_RAG_CARD_BULK_REVIEW,
         }
     ),
     Role.ADMIN: frozenset(Permission),  # все
@@ -150,6 +194,13 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_RAG_CARD_READ,
             Permission.KB_RAG_CARD_PREVIEW,
             Permission.KB_RAG_CARD_LINEAGE_READ,
+            # SETUP-06: auditor — read-only по review log/versions/diff.
+            Permission.KB_RAG_CARD_LIST,
+            Permission.KB_RAG_CARD_VERSION_READ,
+            Permission.KB_RAG_CARD_DIFF_READ,
+            Permission.KB_RAG_CARD_REVIEW_LOG_READ,
+            Permission.KB_RAG_CARD_VALIDATION_READ,
+            Permission.KB_RAG_CARD_SOURCE_TRACE_READ,
         }
     ),
 }

@@ -137,7 +137,41 @@ def app_with_clean_state() -> FastAPI:
 
     card_registry = InMemoryRAGCardRegistry()
     metadata_validation = MetadataValidationService(registry=card_registry)
-    card_review = RAGCardReviewService(registry=card_registry)
+
+    # SETUP-06 (T-S06-023): full-wired RAGCardReviewService с per-test instances.
+    from fe_bot.setup.card_review.decision_repository import (
+        InMemoryReviewDecisionRepository,
+    )
+    from fe_bot.setup.card_review.edit_lock_repository import (
+        InMemoryEditLockRepository,
+    )
+    from fe_bot.setup.card_review.log_repository import (
+        InMemoryReviewLogRepository,
+    )
+    from fe_bot.setup.card_review.metrics import ReviewMetricsCollector
+    from fe_bot.setup.card_review.readiness import ReviewReadinessCalculator
+    from fe_bot.setup.card_review.version_repository import (
+        InMemoryRAGCardVersionRepository,
+    )
+
+    review_decision_repo = InMemoryReviewDecisionRepository()
+    review_log_repo = InMemoryReviewLogRepository()
+    card_version_repo = InMemoryRAGCardVersionRepository()
+    edit_lock_repo = InMemoryEditLockRepository()
+    review_readiness = ReviewReadinessCalculator(card_registry=card_registry)
+    review_metrics = ReviewMetricsCollector(metrics=metrics_registry)
+
+    card_review = RAGCardReviewService(
+        registry=card_registry,
+        decision_repo=review_decision_repo,
+        log_repo=review_log_repo,
+        version_repo=card_version_repo,
+        edit_lock_repo=edit_lock_repo,
+        readiness_calculator=review_readiness,
+        event_bus=bus,
+        audit_service=audit_svc,
+        metrics=review_metrics,
+    )
 
     # S5 wiring: chunking + embedding + indexing. EmbeddingService использует
     # реальный LLMGateway, но в большинстве integration-тестов pipeline
