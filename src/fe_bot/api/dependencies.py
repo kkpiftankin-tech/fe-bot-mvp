@@ -341,6 +341,17 @@ from fe_bot.setup.card_review.readiness import (  # noqa: E402
 
 _review_readiness_calculator = _ReviewReadinessCalculator(card_registry=_card_registry)
 _review_metrics_collector = _ReviewMetricsCollector(metrics=_metrics)
+# SETUP-07 (T-S07-010): rewrite _metadata_validation с full wiring
+# (создаётся ДО _card_review, чтобы T-S07-017 hook мог использовать его).
+_metadata_validation = MetadataValidationService(
+    registry=_card_registry,
+    report_repo=_validation_report_repo,
+    run_repo=_validation_run_repo,
+    event_bus=_event_bus,
+    audit_service=_audit_service,
+    metrics=_validation_metrics,
+)
+
 _card_review = RAGCardReviewService(
     registry=_card_registry,
     decision_repo=_review_decision_repo,
@@ -352,16 +363,7 @@ _card_review = RAGCardReviewService(
     audit_service=_audit_service,
     metrics=_review_metrics_collector,
     generation_orchestrator=_rag_card_orchestrator,
-)
-
-# SETUP-07 (T-S07-010): rewrite _metadata_validation с full wiring.
-_metadata_validation = MetadataValidationService(
-    registry=_card_registry,
-    report_repo=_validation_report_repo,
-    run_repo=_validation_run_repo,
-    event_bus=_event_bus,
-    audit_service=_audit_service,
-    metrics=_validation_metrics,
+    validation_service=_metadata_validation,  # T-S07-017
 )
 
 

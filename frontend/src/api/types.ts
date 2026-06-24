@@ -1032,3 +1032,68 @@ export interface ReviewLogResponse {
   doc_id: string;
   items: ReviewLogItemDTO[];
 }
+
+// ============================================================
+// SETUP-07 validation (T-S07-014)
+// ============================================================
+
+export interface ValidationIssueItem {
+  code: string;
+  field: string | null;
+  message: string;
+  severity: string;
+  details: Record<string, unknown>;
+}
+
+export interface ValidationCheckItem {
+  name: string;
+  passed: boolean;
+}
+
+export interface ValidationReportItem {
+  validation_report_id: string;
+  setup_job_id: string | null;
+  doc_id: string;
+  card_version: string | null;
+  status: string;
+  errors: ValidationIssueItem[];
+  warnings: ValidationIssueItem[];
+  checks: ValidationCheckItem[];
+  policy_used: string | null;
+  validation_run_id: string | null;
+  validator_name: string;
+  created_at: string;
+}
+
+export interface ValidationReportListResponse {
+  setup_job_id: string;
+  items: ValidationReportItem[];
+  total: number;
+}
+
+export interface ValidationRunResponse {
+  validation_run_id: string;
+  setup_job_id: string;
+  status: string;
+  triggered_by: string;
+  policy: string;
+  total: number;
+  passed: number;
+  warnings: number;
+  failed: number;
+  review_required: number;
+  started_at: string;
+  finished_at: string | null;
+  duration_ms: number | null;
+}
+
+export interface ValidationSummaryResponse {
+  setup_job_id: string;
+  total: number;
+  passed: number;
+  warnings: number;
+  failed: number;
+  review_required: number;
+  by_code: Record<string, number>;
+  last_run_id: string | null;
+}

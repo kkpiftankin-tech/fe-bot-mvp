@@ -55,6 +55,11 @@ class Permission(StrEnum):
     KB_RAG_CARD_SOURCE_TRACE_READ = "kb.rag_card.source_trace.read"
     KB_RAG_CARD_BULK_REVIEW = "kb.rag_card.bulk_review"
 
+    # SETUP-07 / T-S07-011: metadata validation permissions family.
+    KB_VALIDATION_READ = "kb.validation.read"
+    KB_VALIDATION_RUN = "kb.validation.run"
+    KB_VALIDATION_REFRESH = "kb.validation.refresh"
+
 
 class Role(StrEnum):
     USER = "user"
@@ -98,6 +103,11 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_RAG_CARD_REVIEW_LOG_READ,
             Permission.KB_RAG_CARD_VALIDATION_READ,
             Permission.KB_RAG_CARD_SOURCE_TRACE_READ,
+            # SETUP-07: user может читать validation reports + запускать
+            # валидацию по своему setup_job + перевалидировать карточки.
+            Permission.KB_VALIDATION_READ,
+            Permission.KB_VALIDATION_RUN,
+            Permission.KB_VALIDATION_REFRESH,
         }
     ),
     Role.DOMAIN_EXPERT: frozenset(
@@ -135,6 +145,10 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_RAG_CARD_REVIEW_LOG_READ,
             Permission.KB_RAG_CARD_VALIDATION_READ,
             Permission.KB_RAG_CARD_SOURCE_TRACE_READ,
+            # SETUP-07: эксперт — полный validation цикл.
+            Permission.KB_VALIDATION_READ,
+            Permission.KB_VALIDATION_RUN,
+            Permission.KB_VALIDATION_REFRESH,
         }
     ),
     Role.RAG_ADMIN: frozenset(
@@ -176,6 +190,10 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_RAG_CARD_VALIDATION_READ,
             Permission.KB_RAG_CARD_SOURCE_TRACE_READ,
             Permission.KB_RAG_CARD_BULK_REVIEW,
+            # SETUP-07: RAG-админ — полный validation цикл.
+            Permission.KB_VALIDATION_READ,
+            Permission.KB_VALIDATION_RUN,
+            Permission.KB_VALIDATION_REFRESH,
         }
     ),
     Role.ADMIN: frozenset(Permission),  # все
@@ -201,6 +219,8 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_RAG_CARD_REVIEW_LOG_READ,
             Permission.KB_RAG_CARD_VALIDATION_READ,
             Permission.KB_RAG_CARD_SOURCE_TRACE_READ,
+            # SETUP-07: auditor — read-only по validation reports.
+            Permission.KB_VALIDATION_READ,
         }
     ),
 }

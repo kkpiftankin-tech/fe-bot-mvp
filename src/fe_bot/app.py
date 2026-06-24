@@ -20,6 +20,7 @@ from fe_bot.api.setup.parse_router import router as parse_router
 from fe_bot.api.setup.rag_cards_router import router as rag_cards_router
 from fe_bot.api.setup.review_router import router as review_router
 from fe_bot.api.setup.router import router as setup_router
+from fe_bot.api.setup.validation_router import router as validation_router
 from fe_bot.api.setup.sources_router import router as sources_router
 from fe_bot.api.setup.sse import router as setup_sse_router
 from fe_bot.observability.middleware import RequestContextMiddleware
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(parse_router)
     app.include_router(rag_cards_router)
     app.include_router(review_router)
+    app.include_router(validation_router)
     app.include_router(setup_sse_router)
     app.include_router(observability_router)
     app.include_router(admin_router)

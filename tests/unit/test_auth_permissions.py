@@ -60,6 +60,8 @@ class TestPermissionsMatrix:
                 Permission.KB_RAG_CARD_REVIEW_LOG_READ,
                 Permission.KB_RAG_CARD_VALIDATION_READ,
                 Permission.KB_RAG_CARD_SOURCE_TRACE_READ,
+                # SETUP-07: auditor — read-only по validation reports.
+                Permission.KB_VALIDATION_READ,
             }
         )
 

@@ -303,6 +303,7 @@ class RAGCardReviewService:
         audit_service: AuditService | None = None,
         metrics: ReviewMetricsCollector | None = None,
         generation_orchestrator: Any = None,  # RAGCardGenerationOrchestrator — late binding
+        validation_service: Any = None,  # MetadataValidationService — SETUP-07 hook (T-S07-017)
     ) -> None:
         self._registry = registry
         self._decisions = decision_repo
@@ -317,6 +318,7 @@ class RAGCardReviewService:
         self._audit = audit_service
         self._metrics = metrics or ReviewMetricsCollector()
         self._generation = generation_orchestrator
+        self._validation = validation_service
 
     # ============================================================
     # Read-side use cases
@@ -536,6 +538,22 @@ class RAGCardReviewService:
             )
         )
         self._emit_completed(doc_id, card.card_version or card.version, target_status, reviewer_id, sid)
+
+        # T-S07-017: auto-validate после approve (опционально, через
+        # validation_service hook). Если валидация PASSED — карточка переходит
+        # в METADATA_VALIDATED. FAILED — возврат в REVIEW_REQUIRED.
+        if self._validation is not None:
+            try:
+                self._validation.validate_one(doc_id, triggered_by=reviewer_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "rag_card_auto_validation_failed",
+                    extra={
+                        "setup_job_id": sid,
+                        "doc_id": doc_id,
+                        "error": str(exc),
+                    },
+                )
 
         # Readiness recalc.
         self._recalculate_readiness(sid)

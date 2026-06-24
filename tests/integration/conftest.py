@@ -136,7 +136,28 @@ def app_with_clean_state() -> FastAPI:
             return self._fallback.generate(section)
 
     card_registry = InMemoryRAGCardRegistry()
-    metadata_validation = MetadataValidationService(registry=card_registry)
+
+    # SETUP-07 (T-S07-013): full-wired MetadataValidationService для integration.
+    from fe_bot.setup.metadata_validation.metrics import (
+        ValidationMetricsCollector as _VC,
+    )
+    from fe_bot.setup.metadata_validation.report_repository import (
+        InMemoryValidationReportRepository,
+    )
+    from fe_bot.setup.metadata_validation.run_repository import (
+        InMemoryValidationRunRepository,
+    )
+
+    validation_report_repo = InMemoryValidationReportRepository()
+    validation_run_repo = InMemoryValidationRunRepository()
+    metadata_validation = MetadataValidationService(
+        registry=card_registry,
+        report_repo=validation_report_repo,
+        run_repo=validation_run_repo,
+        event_bus=bus,
+        audit_service=audit_svc,
+        metrics=_VC(metrics=metrics_registry),
+    )
 
     # SETUP-06 (T-S06-023): full-wired RAGCardReviewService с per-test instances.
     from fe_bot.setup.card_review.decision_repository import (
@@ -171,6 +192,7 @@ def app_with_clean_state() -> FastAPI:
         event_bus=bus,
         audit_service=audit_svc,
         metrics=review_metrics,
+        validation_service=metadata_validation,  # T-S07-017 auto-validate on approve
     )
 
     # S5 wiring: chunking + embedding + indexing. EmbeddingService использует
@@ -442,6 +464,18 @@ def app_with_clean_state() -> FastAPI:
     app.dependency_overrides[get_ontology_mapper] = lambda: _Onto05()
     app.dependency_overrides[get_prompt_template_registry] = lambda: _PromptReg05()
     app.dependency_overrides[_get_card_reg_router] = lambda: card_registry
+
+    # SETUP-07 (T-S07-013): override validation repos для integration tests.
+    from fe_bot.api.dependencies import (
+        get_validation_report_repo as _get_val_report_repo,
+    )
+    from fe_bot.api.dependencies import (
+        get_validation_run_repo as _get_val_run_repo,
+    )
+
+    app.dependency_overrides[_get_val_report_repo] = lambda: validation_report_repo
+    app.dependency_overrides[_get_val_run_repo] = lambda: validation_run_repo
+
     yield app
     app.dependency_overrides.clear()
     # Очистка module-level singletons (на всякий случай для других тестов).
