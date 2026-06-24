@@ -62,6 +62,8 @@ class TestPermissionsMatrix:
                 Permission.KB_RAG_CARD_SOURCE_TRACE_READ,
                 # SETUP-07: auditor — read-only по validation reports.
                 Permission.KB_VALIDATION_READ,
+                # SETUP-08: auditor — read-only по chunk manifest.
+                Permission.KB_CHUNKING_READ,
             }
         )
 

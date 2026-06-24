@@ -60,6 +60,11 @@ class Permission(StrEnum):
     KB_VALIDATION_RUN = "kb.validation.run"
     KB_VALIDATION_REFRESH = "kb.validation.refresh"
 
+    # SETUP-08 / T-S08-011: chunking permissions family.
+    KB_CHUNKING_READ = "kb.chunking.read"
+    KB_CHUNKING_RUN = "kb.chunking.run"
+    KB_CHUNKING_REFRESH = "kb.chunking.refresh"
+
 
 class Role(StrEnum):
     USER = "user"
@@ -108,6 +113,10 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_VALIDATION_READ,
             Permission.KB_VALIDATION_RUN,
             Permission.KB_VALIDATION_REFRESH,
+            # SETUP-08: user — полный chunking цикл по своему setup_job.
+            Permission.KB_CHUNKING_READ,
+            Permission.KB_CHUNKING_RUN,
+            Permission.KB_CHUNKING_REFRESH,
         }
     ),
     Role.DOMAIN_EXPERT: frozenset(
@@ -149,6 +158,10 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_VALIDATION_READ,
             Permission.KB_VALIDATION_RUN,
             Permission.KB_VALIDATION_REFRESH,
+            # SETUP-08: эксперт — полный chunking цикл.
+            Permission.KB_CHUNKING_READ,
+            Permission.KB_CHUNKING_RUN,
+            Permission.KB_CHUNKING_REFRESH,
         }
     ),
     Role.RAG_ADMIN: frozenset(
@@ -194,6 +207,10 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_VALIDATION_READ,
             Permission.KB_VALIDATION_RUN,
             Permission.KB_VALIDATION_REFRESH,
+            # SETUP-08: RAG-админ — полный chunking цикл.
+            Permission.KB_CHUNKING_READ,
+            Permission.KB_CHUNKING_RUN,
+            Permission.KB_CHUNKING_REFRESH,
         }
     ),
     Role.ADMIN: frozenset(Permission),  # все
@@ -221,6 +238,8 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_RAG_CARD_SOURCE_TRACE_READ,
             # SETUP-07: auditor — read-only по validation reports.
             Permission.KB_VALIDATION_READ,
+            # SETUP-08: auditor — read-only по manifest.
+            Permission.KB_CHUNKING_READ,
         }
     ),
 }

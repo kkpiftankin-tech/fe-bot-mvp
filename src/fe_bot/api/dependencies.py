@@ -297,6 +297,28 @@ from fe_bot.setup.metadata_validation.metrics import (  # noqa: E402
 _validation_report_repo = _ValidationReportRepo()
 _validation_run_repo = _ValidationRunRepo()
 _validation_metrics = _ValidationMetricsCollector(metrics=_metrics)
+
+# SETUP-08 (T-S08-010): chunking persistence + observability.
+from fe_bot.setup.chunking.manifest_repository import (  # noqa: E402
+    InMemoryChunkManifestRepository as _ChunkManifestRepo,
+)
+from fe_bot.setup.chunking.metrics import (  # noqa: E402
+    ChunkingMetricsCollector as _ChunkingMetricsCollector,
+)
+from fe_bot.setup.chunking.orchestrator import (  # noqa: E402
+    ChunkingOrchestrator as _ChunkingOrchestrator,
+)
+
+_chunk_manifest_repo = _ChunkManifestRepo()
+_chunking_metrics = _ChunkingMetricsCollector(metrics=_metrics)
+_chunking_orchestrator = _ChunkingOrchestrator(
+    registry=_card_registry,
+    chunking=_chunking,
+    manifest_repo=_chunk_manifest_repo,
+    event_bus=_event_bus,
+    audit_service=_audit_service,
+    metrics=_chunking_metrics,
+)
 _ontology_mapper = _OntologyMapper()
 _prompt_template_registry = _PromptTemplateRegistry()
 _doc_type_detector = _DocTypeDetector()
@@ -544,6 +566,15 @@ def get_rag_card_source_link_repo() -> _RAGSourceLinkRepo:
 
 def get_card_generation_report_repo() -> _CardReportRepo:
     return _card_generation_report_repo
+
+
+# SETUP-08 (T-S08-010): chunking repositories.
+def get_chunk_manifest_repo() -> _ChunkManifestRepo:
+    return _chunk_manifest_repo
+
+
+def get_chunking_orchestrator() -> _ChunkingOrchestrator:
+    return _chunking_orchestrator
 
 
 # SETUP-07 (T-S07-010): validation repositories.

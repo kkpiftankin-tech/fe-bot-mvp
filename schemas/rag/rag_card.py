@@ -72,7 +72,14 @@ _FORWARD_CARD_TRANSITIONS: dict[CardStatus, frozenset[CardStatus]] = {
         }
     ),
     CardStatus.METADATA_VALIDATED: frozenset(
-        {CardStatus.REVIEW_REQUIRED, CardStatus.APPROVED, CardStatus.DEPRECATED}
+        {
+            CardStatus.REVIEW_REQUIRED,
+            CardStatus.APPROVED,
+            # SETUP-08: METADATA_VALIDATED → CHUNKED разрешён напрямую
+            # (post-T-S07 carda готова к chunking без отдельного approve gate).
+            CardStatus.CHUNKED,
+            CardStatus.DEPRECATED,
+        }
     ),
     CardStatus.READY_FOR_METADATA_VALIDATION: frozenset(
         {

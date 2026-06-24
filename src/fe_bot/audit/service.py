@@ -77,6 +77,10 @@ class AuditAction(StrEnum):
     VALIDATION_REPORT_CREATED = "validation.report_created"
     VALIDATION_ISSUE_RESOLVED = "validation.issue_resolved"
 
+    # SETUP-08 / T-S08-005: chunking audit actions.
+    CHUNKING_RUN_TRIGGERED = "chunking.run_triggered"
+    CHUNKING_MANIFEST_CREATED = "chunking.manifest_created"
+
     # Indexing
     CHUNKS_INDEXED = "chunks.indexed"
     INDEX_FAILED = "index.failed"

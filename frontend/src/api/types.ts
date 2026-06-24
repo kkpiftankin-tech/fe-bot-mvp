@@ -1097,3 +1097,49 @@ export interface ValidationSummaryResponse {
   by_code: Record<string, number>;
   last_run_id: string | null;
 }
+
+// ============================================================
+// SETUP-08 chunking (T-S08-014)
+// ============================================================
+
+export interface ChunkItem {
+  chunk_id: string;
+  doc_id: string;
+  chunk_type: string;
+  section_title: string | null;
+  chunk_text: string;
+  embedding_text: string;
+  metadata: Record<string, unknown>;
+  priority: number;
+  source_section_id: string | null;
+  token_count: number | null;
+  created_at: string;
+  status: string;
+}
+
+export interface ChunkManifestResponse {
+  manifest_id: string;
+  setup_job_id: string;
+  total_chunks: number;
+  by_type: Record<string, number>;
+  chunks: ChunkItem[];
+  created_at: string;
+  created_by: string;
+}
+
+export interface ChunkPreviewResponse {
+  doc_id: string;
+  chunks: ChunkItem[];
+}
+
+export interface ChunkingRunResponse {
+  chunking_run_id: string;
+  setup_job_id: string;
+  manifest_id: string;
+  triggered_by: string;
+  total_cards: number;
+  chunks_created: number;
+  duration_ms: number;
+  started_at: string;
+  finished_at: string;
+}

@@ -159,6 +159,26 @@ def app_with_clean_state() -> FastAPI:
         metrics=_VC(metrics=metrics_registry),
     )
 
+    # SETUP-08 (T-S08-013): full-wired chunking orchestrator для integration.
+    # ChunkingService инстанцируется здесь (раньше S5 wiring), чтобы
+    # orchestrator + S5 pipeline могли использовать один и тот же экземпляр.
+    chunking_svc = ChunkingService()
+    from fe_bot.setup.chunking.manifest_repository import (
+        InMemoryChunkManifestRepository,
+    )
+    from fe_bot.setup.chunking.metrics import ChunkingMetricsCollector
+    from fe_bot.setup.chunking.orchestrator import ChunkingOrchestrator
+
+    chunk_manifest_repo = InMemoryChunkManifestRepository()
+    chunking_orch = ChunkingOrchestrator(
+        registry=card_registry,
+        chunking=chunking_svc,
+        manifest_repo=chunk_manifest_repo,
+        event_bus=bus,
+        audit_service=audit_svc,
+        metrics=ChunkingMetricsCollector(metrics=metrics_registry),
+    )
+
     # SETUP-06 (T-S06-023): full-wired RAGCardReviewService с per-test instances.
     from fe_bot.setup.card_review.decision_repository import (
         InMemoryReviewDecisionRepository,
@@ -201,7 +221,7 @@ def app_with_clean_state() -> FastAPI:
     # fallback-генератора). Тесты, проверяющие S5 явно, используют respx
     # для мокирования /api/embeddings.
     vector_index_client = InMemoryVectorIndexClient()
-    chunking_svc = ChunkingService()
+    # chunking_svc уже инстанцирован выше (SETUP-08 wiring).
     embedding_svc = EmbeddingService(llm_gateway=LLMGateway(client=None))
     vector_indexer = VectorIndexerService(
         chunking=chunking_svc,
@@ -475,6 +495,17 @@ def app_with_clean_state() -> FastAPI:
 
     app.dependency_overrides[_get_val_report_repo] = lambda: validation_report_repo
     app.dependency_overrides[_get_val_run_repo] = lambda: validation_run_repo
+
+    # SETUP-08 (T-S08-013): override chunking deps.
+    from fe_bot.api.dependencies import (
+        get_chunk_manifest_repo as _get_chunk_mr,
+    )
+    from fe_bot.api.dependencies import (
+        get_chunking_orchestrator as _get_chunk_orch,
+    )
+
+    app.dependency_overrides[_get_chunk_mr] = lambda: chunk_manifest_repo
+    app.dependency_overrides[_get_chunk_orch] = lambda: chunking_orch
 
     yield app
     app.dependency_overrides.clear()

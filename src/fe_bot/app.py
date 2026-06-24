@@ -18,6 +18,7 @@ from fe_bot.api.dependencies import get_metrics
 from fe_bot.api.observability.router import router as observability_router
 from fe_bot.api.setup.parse_router import router as parse_router
 from fe_bot.api.setup.rag_cards_router import router as rag_cards_router
+from fe_bot.api.setup.chunking_router import router as chunking_router
 from fe_bot.api.setup.review_router import router as review_router
 from fe_bot.api.setup.router import router as setup_router
 from fe_bot.api.setup.validation_router import router as validation_router
@@ -72,6 +73,7 @@ def create_app() -> FastAPI:
     app.include_router(rag_cards_router)
     app.include_router(review_router)
     app.include_router(validation_router)
+    app.include_router(chunking_router)
     app.include_router(setup_sse_router)
     app.include_router(observability_router)
     app.include_router(admin_router)

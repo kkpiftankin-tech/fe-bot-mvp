@@ -192,6 +192,8 @@ def register_default_state(persister: SnapshotPersister) -> None:
     # SETUP-07 (T-S07-010): validation state.
     persister.register_repo("validation_reports", deps._validation_report_repo)
     persister.register_repo("validation_runs", deps._validation_run_repo)
+    # SETUP-08 (T-S08-010): chunk manifest state.
+    persister.register_repo("chunk_manifests", deps._chunk_manifest_repo)
     persister.register_artifact_storage("artifacts", deps._artifact_storage)
 
 
