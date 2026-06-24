@@ -13,7 +13,7 @@ beforeEach(() => {
 afterEach(() => useWizardStore.getState().reset());
 
 describe("WizardLayout", () => {
-  it("renders all 9 steps in the navigation", () => {
+  it("renders all 11 steps in the navigation", () => {
     renderWithProviders(<WizardLayout />);
     expect(screen.getByText("1. Создать job")).toBeInTheDocument();
     expect(screen.getByText("2. Загрузить документы")).toBeInTheDocument();
@@ -21,9 +21,11 @@ describe("WizardLayout", () => {
     expect(screen.getByText("4. Генерация RAG-карточек")).toBeInTheDocument();
     expect(screen.getByText("5. Запустить pipeline")).toBeInTheDocument();
     expect(screen.getByText("6. Проверить карточки")).toBeInTheDocument();
-    expect(screen.getByText("7. Retrieval-tests")).toBeInTheDocument();
-    expect(screen.getByText("8. Публикация KB")).toBeInTheDocument();
-    expect(screen.getByText("9. Отчёт")).toBeInTheDocument();
+    expect(screen.getByText("7. Валидация metadata")).toBeInTheDocument();
+    expect(screen.getByText("8. Chunking")).toBeInTheDocument();
+    expect(screen.getByText("9. Retrieval-tests")).toBeInTheDocument();
+    expect(screen.getByText("10. Публикация KB")).toBeInTheDocument();
+    expect(screen.getByText("11. Отчёт")).toBeInTheDocument();
   });
 
   it("disables later steps until job is created", async () => {

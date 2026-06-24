@@ -1,4 +1,5 @@
 import { WIZARD_STEPS, useWizardStore } from "../../store/wizardStore";
+import { ChunkingStep } from "./steps/ChunkingStep";
 import { CreateJobStep } from "./steps/CreateJobStep";
 import { ParsingStep } from "./steps/ParsingStep";
 import { PublishStep } from "./steps/PublishStep";
@@ -8,6 +9,7 @@ import { RetrievalTestsStep } from "./steps/RetrievalTestsStep";
 import { ReviewCardsStep } from "./steps/ReviewCardsStep";
 import { RunPipelineStep } from "./steps/RunPipelineStep";
 import { UploadDocumentsStep } from "./steps/UploadDocumentsStep";
+import { ValidationStep } from "./steps/ValidationStep";
 
 export function WizardLayout(): JSX.Element {
   const { currentStep, setupJobId, setStep } = useWizardStore();
@@ -40,6 +42,8 @@ export function WizardLayout(): JSX.Element {
         {currentStep === "rag_card_generation" && <RAGCardGenerationStep />}
         {currentStep === "run" && <RunPipelineStep />}
         {currentStep === "review" && <ReviewCardsStep />}
+        {currentStep === "validation" && <ValidationStep />}
+        {currentStep === "chunking" && <ChunkingStep />}
         {currentStep === "tests" && <RetrievalTestsStep />}
         {currentStep === "publish" && <PublishStep />}
         {currentStep === "report" && <ReportStep />}

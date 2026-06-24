@@ -9,6 +9,8 @@ export type WizardStep =
   | "rag_card_generation"
   | "run"
   | "review"
+  | "validation"
+  | "chunking"
   | "tests"
   | "publish"
   | "report";
@@ -20,9 +22,11 @@ export const WIZARD_STEPS: { id: WizardStep; label: string }[] = [
   { id: "rag_card_generation", label: "4. Генерация RAG-карточек" },
   { id: "run", label: "5. Запустить pipeline" },
   { id: "review", label: "6. Проверить карточки" },
-  { id: "tests", label: "7. Retrieval-tests" },
-  { id: "publish", label: "8. Публикация KB" },
-  { id: "report", label: "9. Отчёт" },
+  { id: "validation", label: "7. Валидация metadata" },
+  { id: "chunking", label: "8. Chunking" },
+  { id: "tests", label: "9. Retrieval-tests" },
+  { id: "publish", label: "10. Публикация KB" },
+  { id: "report", label: "11. Отчёт" },
 ];
 
 interface WizardState {

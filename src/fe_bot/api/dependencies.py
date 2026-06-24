@@ -326,9 +326,40 @@ _metadata_extractor = _MetadataExtractor()
 _doc_id_generator = _DocIdGenerator()
 _card_validation_precheck = _CardValidationPrecheck()
 _confidence_calculator = _ConfidenceCalculator()
+# SETUP-05 fallback: deterministic generator для template/hybrid mode и при
+# недоступности LLM. Создаёт минимально валидный draft, проходящий precheck.
+from fe_bot.setup.rag_card_generation.llm_adapter import (  # noqa: E402
+    FallbackGenerator as _SETUP05Fallback,
+)
+from fe_bot.setup.rag_card_generation.precheck import (  # noqa: E402
+    RAGCardDraft as _SETUP05Draft,
+)
+
+
+class _DefaultSETUP05Fallback(_SETUP05Fallback):
+    """Stub-fallback для dev: возвращает детерминированный draft."""
+
+    def generate_draft(self, prompt: str, *, doc_type: str) -> _SETUP05Draft:
+        return _SETUP05Draft(
+            doc_id="placeholder.x.v1",
+            doc_type=doc_type,
+            title="Generated card",
+            body_markdown="Generated body content for RAG card. " * 5,
+            front_matter={
+                "doc_id": "placeholder.x.v1",
+                "doc_type": doc_type,
+                "domain": ["naval"],
+                "phase": ["feature_synthesis"],
+            },
+            source_files=["src.md"],
+            source_sections=["sec_001"],
+            retrieval_tags=["test", "generated"],
+        )
+
+
 _llm_card_adapter = _LLMCardAdapter(
     llm_gateway=_llm_gateway,
-    fallback_generator=None,  # rule-based fallback подключается позже (S5 wiring).
+    fallback_generator=_DefaultSETUP05Fallback(),
 )
 _rag_card_orchestrator = _RAGCardOrchestrator(
     job_repo=_rag_card_job_repo,

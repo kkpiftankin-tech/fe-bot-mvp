@@ -130,12 +130,38 @@ class InMemoryRAGCardRegistry:
         return self._clone(record)
 
     def get(self, doc_id: str) -> CardRecord:
-        if doc_id not in self._store:
-            raise CardNotFoundError(doc_id)
-        return self._clone(self._store[doc_id])
+        if doc_id in self._store:
+            return self._clone(self._store[doc_id])
+        # SETUP-05+ fallback: посмотреть в _versions (latest версия).
+        versions = self._version_order.get(doc_id)
+        if versions:
+            card = self._versions[(doc_id, versions[-1])]
+            from schemas.rag.ontology import Domain, Phase
+            from schemas.rag.rag_metadata import RAGMetadata
+
+            try:
+                meta = RAGMetadata.model_validate(card.front_matter)
+            except Exception:  # noqa: BLE001
+                meta = RAGMetadata(
+                    doc_id=card.doc_id,
+                    doc_type=card.doc_type,
+                    phase=[Phase.FEATURE_SYNTHESIS],
+                    domain=[Domain.NAVAL],
+                    retrieval_tags=list(card.front_matter.get("retrieval_tags", []))
+                    or ["unknown"],
+                )
+            return CardRecord(
+                setup_job_id=card.setup_job_id or "",
+                card=card,
+                metadata=meta,
+                section_id=card.primary_source_section_id,
+            )
+        raise CardNotFoundError(doc_id)
 
     def exists(self, doc_id: str) -> bool:
-        return doc_id in self._store
+        if doc_id in self._store:
+            return True
+        return bool(self._version_order.get(doc_id))
 
     def list_for_job(
         self,
@@ -144,6 +170,45 @@ class InMemoryRAGCardRegistry:
         status_in: frozenset[CardStatus] | None = None,
     ) -> list[CardRecord]:
         records = [r for r in self._store.values() if r.setup_job_id == setup_job_id]
+
+        # SETUP-05+ unification: cards stored via save_version() в _versions —
+        # latest версия каждой карточки выставляется как CardRecord (используя
+        # metadata из card.front_matter, поскольку RAGMetadata отдельно не
+        # хранится для SETUP-05 cards).
+        seen_doc_ids = {r.card.doc_id for r in records}
+        for doc_id, versions in self._version_order.items():
+            if doc_id in seen_doc_ids or not versions:
+                continue
+            card = self._versions[(doc_id, versions[-1])]
+            if card.setup_job_id != setup_job_id:
+                continue
+            # Synthesize metadata from card.front_matter for legacy CardRecord shape.
+            from schemas.rag.rag_metadata import RAGMetadata
+
+            try:
+                meta = RAGMetadata.model_validate(card.front_matter)
+            except Exception:  # noqa: BLE001
+                # Minimal valid metadata fallback с required-полями из ontology.
+                from schemas.rag.ontology import Domain, Phase
+
+                meta = RAGMetadata(
+                    doc_id=card.doc_id,
+                    doc_type=card.doc_type,
+                    phase=[Phase.FEATURE_SYNTHESIS],
+                    domain=[Domain.NAVAL],
+                    retrieval_tags=list(card.front_matter.get("retrieval_tags", []))
+                    or ["unknown"],
+                )
+            records.append(
+                CardRecord(
+                    setup_job_id=setup_job_id,
+                    card=card,
+                    metadata=meta,
+                    section_id=card.primary_source_section_id,
+                )
+            )
+            seen_doc_ids.add(doc_id)
+
         if status_in is not None:
             records = [r for r in records if r.card.status in status_in]
         return [self._clone(r) for r in records]
@@ -156,8 +221,20 @@ class InMemoryRAGCardRegistry:
         metadata: RAGMetadata | None = None,
         note: str | None = None,
     ) -> CardRecord:
+        # SETUP-05+: если карточка только в _versions — материализуем её в
+        # _store (через get) для legacy update flow.
         if doc_id not in self._store:
-            raise CardNotFoundError(doc_id)
+            try:
+                synthesized = self.get(doc_id)
+            except CardNotFoundError:
+                raise
+            # add к _store
+            self._store[doc_id] = CardRecord(
+                setup_job_id=synthesized.setup_job_id,
+                card=synthesized.card,
+                metadata=synthesized.metadata,
+                section_id=synthesized.section_id,
+            )
         existing = self._store[doc_id]
         new_card = card.model_copy(deep=True) if card is not None else existing.card
         # Обновляем updated_at если карточка действительно изменилась
