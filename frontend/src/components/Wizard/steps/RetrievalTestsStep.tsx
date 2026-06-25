@@ -55,7 +55,7 @@ export function RetrievalTestsStep(): JSX.Element {
 
   return (
     <div>
-      <h2>Шаг 5. Retrieval-tests</h2>
+      <h2>Шаг 9. Retrieval-tests</h2>
       <p className="text-muted">
         Опишите golden-set из (query, expected_doc_ids), чтобы измерить качество
         retrieval перед публикацией. Gate по умолчанию — recall@5 ≥ 0.85.

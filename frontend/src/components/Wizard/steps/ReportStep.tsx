@@ -25,7 +25,7 @@ export function ReportStep(): JSX.Element {
 
   return (
     <div>
-      <h2>Шаг 7. Итоговый отчёт</h2>
+      <h2>Шаг 11. Итоговый отчёт</h2>
       <p className="text-muted">
         Сводка по всему setup job — используется auditor'ом для проверки качества
         KB до выкатки в Runtime.
