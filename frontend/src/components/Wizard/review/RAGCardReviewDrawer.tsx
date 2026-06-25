@@ -8,6 +8,7 @@ import {
   regenerateReviewCard,
   reviewCard,
 } from "../../../api/review";
+import { LLMProgressBar } from "../../observability/LLMProgressBar";
 
 type Tab = "overview" | "metadata" | "body" | "source" | "validation" | "versions" | "log";
 
@@ -381,6 +382,11 @@ export function RAGCardReviewDrawer({
                 Запросить регенерацию
               </button>
             </div>
+            <LLMProgressBar
+              active={regenMut.isPending}
+              model="llama3.2"
+              label="Регенерация карточки — LLM"
+            />
           </div>
         )}
 

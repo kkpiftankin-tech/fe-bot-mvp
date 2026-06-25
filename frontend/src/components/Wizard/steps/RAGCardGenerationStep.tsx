@@ -12,6 +12,7 @@ import type {
   RAGCardGenerationJobStatus,
 } from "../../../api/types";
 import { useWizardStore } from "../../../store/wizardStore";
+import { LLMProgressBar } from "../../observability/LLMProgressBar";
 import { LowConfidenceCardsPanel } from "../rag/LowConfidenceCardsPanel";
 import { RAGCardList } from "../rag/RAGCardList";
 import { RAGCardPreviewDrawer } from "../rag/RAGCardPreviewDrawer";
@@ -195,6 +196,12 @@ export function RAGCardGenerationStep(): JSX.Element {
           {lastError}
         </div>
       )}
+
+      <LLMProgressBar
+        active={runMut.isPending}
+        model="llama3.2"
+        label="Генерация карточки — LLM вызов"
+      />
 
       {statusQuery.data && (
         <div style={{ marginTop: 20 }} data-testid="rag-card-job-status">

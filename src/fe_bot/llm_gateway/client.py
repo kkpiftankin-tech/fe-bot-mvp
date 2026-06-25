@@ -66,14 +66,17 @@ class LLMGateway:
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         max_retries: int = DEFAULT_MAX_RETRIES,
         client: httpx.Client | None = None,
+        stats_collector: object | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout_seconds
         self._max_retries = max_retries
         self._owns_client = client is None
-        self._client = client or httpx.Client(
-            base_url=self._base_url, timeout=timeout_seconds
-        )
+        self._client = client or httpx.Client(base_url=self._base_url, timeout=timeout_seconds)
+        # OBS-LLM-01: optional LLMStatsCollector — записываем latency для UI
+        # progress bar. Duck-typed: достаточно метода
+        # ``record(*, model: str, latency_ms: int) -> None``.
+        self._stats = stats_collector
 
     def close(self) -> None:
         if self._owns_client:
@@ -200,9 +203,7 @@ class LLMGateway:
             )
             resp.raise_for_status()
         except httpx.HTTPError as exc:
-            raise LLMUnavailableError(
-                f"Ollama embeddings call failed: {exc}"
-            ) from exc
+            raise LLMUnavailableError(f"Ollama embeddings call failed: {exc}") from exc
 
         data = resp.json()
         vector = data.get("embedding")
@@ -238,11 +239,16 @@ class LLMGateway:
             resp = self._client.post("/api/generate", json=body)
             resp.raise_for_status()
         except httpx.HTTPError as exc:
-            raise LLMUnavailableError(
-                f"Ollama generate call failed: {exc}"
-            ) from exc
+            raise LLMUnavailableError(f"Ollama generate call failed: {exc}") from exc
 
         latency_ms = int((time.monotonic() - start) * 1000)
+        # OBS-LLM-01: record latency for UI progress bar.
+        if self._stats is not None:
+            try:
+                self._stats.record(model=model, latency_ms=latency_ms)
+            except Exception:  # noqa: BLE001
+                # stats не должны ломать LLM-вызов
+                pass
         data = resp.json()
         raw_text = data.get("response", "")
         return LLMCallResult(

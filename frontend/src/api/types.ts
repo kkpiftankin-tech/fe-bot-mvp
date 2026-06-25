@@ -1143,3 +1143,21 @@ export interface ChunkingRunResponse {
   started_at: string;
   finished_at: string;
 }
+
+// ============================================================
+// OBS-LLM-01: LLM call stats
+// ============================================================
+
+export interface LLMModelStats {
+  model: string;
+  count: number;
+  avg_ms: number;
+  p50_ms: number;
+  p95_ms: number;
+  last_ms: number | null;
+}
+
+export interface LLMStatsResponse {
+  models: LLMModelStats[];
+  total_calls: number;
+}

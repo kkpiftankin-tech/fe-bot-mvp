@@ -120,7 +120,15 @@ _parser_service = DocumentParserService(
     artifact_storage=_artifact_storage,
     source_registry=_source_registry,
 )
-_llm_gateway = LLMGateway()
+# OBS-LLM-01: stats collector для UI progress bar по LLM-вызовам.
+from fe_bot.observability.llm_stats import LLMStatsCollector  # noqa: E402
+
+_llm_stats = LLMStatsCollector()
+_llm_gateway = LLMGateway(stats_collector=_llm_stats)
+
+
+def get_llm_stats() -> LLMStatsCollector:
+    return _llm_stats
 
 
 def _is_force_fallback() -> bool:
