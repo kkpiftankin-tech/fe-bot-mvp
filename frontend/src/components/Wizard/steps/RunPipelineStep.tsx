@@ -2,6 +2,15 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { getSetupProgress, runPipeline } from "../../../api/setup";
 import { ApiError } from "../../../api/types";
 import { useWizardStore } from "../../../store/wizardStore";
+import { LLMProgressBar } from "../../observability/LLMProgressBar";
+
+// Шаги pipeline которые активно используют LLM (rag-card generation +
+// metadata validation). На этих этапах показываем частный LLM progress bar.
+const LLM_STEPS = new Set([
+  "rag_cards_generating",
+  "metadata_validating",
+  "embedding",
+]);
 
 export function RunPipelineStep(): JSX.Element {
   const { setupJobId, setStep } = useWizardStore();
@@ -15,9 +24,11 @@ export function RunPipelineStep(): JSX.Element {
     enabled: !!setupJobId,
     refetchInterval: (q) => {
       const data = q.state.data;
-      if (!data) return 2000;
+      if (!data) return 500;
       const terminal = ["ready", "failed", "cancelled", "review_required"];
-      return terminal.includes(data.status) ? false : 2000;
+      // Уменьшено с 2000ms → 500ms чтобы UI показывал шаги pipeline
+      // и LLM-вызовы в почти-реальном времени.
+      return terminal.includes(data.status) ? false : 500;
     },
   });
 
@@ -61,7 +72,11 @@ export function RunPipelineStep(): JSX.Element {
       )}
 
       {progressQuery.data && (
-        <div style={{ marginTop: 24 }}>
+        <div style={{ marginTop: 24 }} data-testid="pipeline-progress">
+          {/* Общий прогресс — все этапы pipeline. */}
+          <div style={{ marginBottom: 4, fontSize: 13, fontWeight: 600 }}>
+            Общий прогресс pipeline
+          </div>
           <div className="progress-bar">
             <div style={{ width: `${progressQuery.data.progress_percent}%` }} />
           </div>
@@ -73,6 +88,32 @@ export function RunPipelineStep(): JSX.Element {
             )}
             · ошибок: {progressQuery.data.error_count}, предупреждений:{" "}
             {progressQuery.data.warning_count}
+          </div>
+
+          {/* Частный прогресс — текущее обращение к LLM. Активен пока
+              pipeline на LLM-нагруженных шагах И mutation в процессе. */}
+          <div style={{ marginTop: 12 }}>
+            <div style={{ marginBottom: 4, fontSize: 13, fontWeight: 600 }}>
+              Прогресс текущего LLM-вызова
+            </div>
+            <LLMProgressBar
+              active={
+                runMutation.isPending &&
+                (progressQuery.data.current_step
+                  ? LLM_STEPS.has(progressQuery.data.current_step)
+                  : true)
+              }
+              model="llama3.2"
+              label={
+                progressQuery.data.current_step === "embedding"
+                  ? "Embedding (nomic-embed-text)"
+                  : `LLM вызов${
+                      progressQuery.data.current_step
+                        ? ` (${progressQuery.data.current_step})`
+                        : ""
+                    }`
+              }
+            />
           </div>
         </div>
       )}
