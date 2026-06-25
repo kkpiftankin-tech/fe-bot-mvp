@@ -65,8 +65,10 @@ export function RAGCardGenerationStep(): JSX.Element {
     enabled: !!setupJobId && !!ragCardGenerationJobId,
     refetchInterval: (q) => {
       const data = q.state.data as RAGCardGenerationJobResponse | undefined;
-      if (!data) return 2000;
-      return TERMINAL.includes(data.status) ? false : 2000;
+      if (!data) return 500;
+      // While job is in non-terminal state — poll fast (500ms) чтобы UI
+      // показывал section-by-section progress даже во время sync /run.
+      return TERMINAL.includes(data.status) ? false : 500;
     },
   });
 
@@ -194,6 +196,30 @@ export function RAGCardGenerationStep(): JSX.Element {
       {lastError && (
         <div className="banner banner-error" style={{ marginTop: 12 }}>
           {lastError}
+        </div>
+      )}
+
+      {runMut.isPending && statusQuery.data && (
+        <div
+          data-testid="batch-progress"
+          style={{
+            margin: "8px 0",
+            padding: "8px 12px",
+            background: "#fffbea",
+            border: "1px solid #ffe69c",
+            borderRadius: 4,
+            fontSize: 13,
+          }}
+        >
+          <strong>
+            Обработано секций: {statusQuery.data.processed_sections} из{" "}
+            {statusQuery.data.total_sections}
+          </strong>
+          <div style={{ marginTop: 4 }}>
+            Сгенерировано: {statusQuery.data.generated_cards} · Ошибок:{" "}
+            {statusQuery.data.failed_sections} · Review required:{" "}
+            {statusQuery.data.review_required_cards}
+          </div>
         </div>
       )}
 
