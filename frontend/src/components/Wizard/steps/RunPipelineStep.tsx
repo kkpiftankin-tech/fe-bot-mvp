@@ -1,4 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { getLLMStats } from "../../../api/llm_stats";
 import { getSetupProgress, runPipeline } from "../../../api/setup";
 import { ApiError } from "../../../api/types";
 import { useWizardStore } from "../../../store/wizardStore";
@@ -39,6 +41,24 @@ export function RunPipelineStep(): JSX.Element {
     },
   });
 
+  // Poll LLM stats и фиксируем "увеличился ли total_calls" — индикатор
+  // живости pipeline на backend (если general progress_percent застрял).
+  const llmStatsQuery = useQuery({
+    queryKey: ["llmStatsForPipeline"],
+    queryFn: getLLMStats,
+    refetchInterval: 1000,
+  });
+  const totalCalls = llmStatsQuery.data?.total_calls ?? 0;
+  const lastTotalCallsRef = useRef<number>(totalCalls);
+  const [lastCallChangeAt, setLastCallChangeAt] = useState<number>(Date.now());
+  useEffect(() => {
+    if (totalCalls !== lastTotalCallsRef.current) {
+      lastTotalCallsRef.current = totalCalls;
+      setLastCallChangeAt(Date.now());
+    }
+  }, [totalCalls]);
+  const secondsSinceLastCall = Math.floor((Date.now() - lastCallChangeAt) / 1000);
+
   const result = runMutation.data;
   const errorMessage =
     runMutation.error instanceof ApiError
@@ -47,7 +67,7 @@ export function RunPipelineStep(): JSX.Element {
 
   return (
     <div>
-      <h2>Шаг 3. Запустить pipeline</h2>
+      <h2>Шаг 5. Запустить pipeline</h2>
       <p className="text-muted">
         Pipeline проходит: parsing → sections_extracted → rag_cards_generating →
         metadata_validating → (review_required ИЛИ chunking → embedding →
@@ -89,32 +109,74 @@ export function RunPipelineStep(): JSX.Element {
             · ошибок: {progressQuery.data.error_count}, предупреждений:{" "}
             {progressQuery.data.warning_count}
           </div>
+          {/* Live activity indicator — total LLM calls растёт = pipeline жив,
+              даже если progress_percent застрял на одной фазе. */}
+          {(() => {
+            const TERMINAL = ["ready", "failed", "cancelled", "review_required"];
+            const running = !TERMINAL.includes(progressQuery.data.status);
+            if (!running) return null;
+            const alive = secondsSinceLastCall < 30;
+            return (
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 12,
+                  color: alive ? "#2e7d32" : "#c0392b",
+                }}
+                data-testid="llm-activity-indicator"
+              >
+                {alive ? "🟢" : "🔴"} LLM-вызовов всего: <strong>{totalCalls}</strong>
+                {secondsSinceLastCall === 0
+                  ? " · только что"
+                  : ` · последний вызов ${secondsSinceLastCall}s назад`}
+                {!alive && totalCalls > 0 && (
+                  <> — возможно, pipeline застрял или ждёт ответ Ollama</>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Частный прогресс — текущее обращение к LLM. Активен пока
-              pipeline на LLM-нагруженных шагах И mutation в процессе. */}
-          <div style={{ marginTop: 12 }}>
-            <div style={{ marginBottom: 4, fontSize: 13, fontWeight: 600 }}>
-              Прогресс текущего LLM-вызова
-            </div>
-            <LLMProgressBar
-              active={
-                runMutation.isPending &&
-                (progressQuery.data.current_step
-                  ? LLM_STEPS.has(progressQuery.data.current_step)
-                  : true)
-              }
-              model="llama3.2"
-              label={
-                progressQuery.data.current_step === "embedding"
-                  ? "Embedding (nomic-embed-text)"
-                  : `LLM вызов${
-                      progressQuery.data.current_step
-                        ? ` (${progressQuery.data.current_step})`
-                        : ""
-                    }`
-              }
-            />
-          </div>
+              pipeline на LLM-нагруженных шагах и НЕ в terminal-статусе.
+              Условие НЕ зависит от runMutation.isPending — пользователь
+              может refreshнуть страницу пока pipeline ещё бежит на backend. */}
+          {(() => {
+            const TERMINAL = ["ready", "failed", "cancelled", "review_required"];
+            const isRunning = !TERMINAL.includes(progressQuery.data.status);
+            const step = progressQuery.data.current_step;
+            const isLLMStep = step ? LLM_STEPS.has(step) : false;
+            const active = isRunning && isLLMStep;
+            return (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ marginBottom: 4, fontSize: 13, fontWeight: 600 }}>
+                  Прогресс текущего LLM-вызова{" "}
+                  {active && (
+                    <span style={{ color: "#666", fontWeight: 400 }}>
+                      · шаг pipeline: <code>{step}</code>
+                    </span>
+                  )}
+                </div>
+                <LLMProgressBar
+                  active={active}
+                  model={step === "embedding" ? "nomic-embed-text" : "llama3.2"}
+                  label={
+                    step === "embedding"
+                      ? "Embedding (nomic-embed-text)"
+                      : `LLM вызов${step ? ` (${step})` : ""}`
+                  }
+                />
+                {!active && isRunning && (
+                  <div
+                    className="text-muted"
+                    style={{ fontSize: 12, marginTop: 4 }}
+                  >
+                    Pipeline на не-LLM шаге (
+                    {step ?? "ожидание"}) — LLM не используется сейчас.
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
