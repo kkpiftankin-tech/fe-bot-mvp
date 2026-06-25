@@ -14,6 +14,11 @@ ABSOLUTE RULES:
 4. ONLY use values from the ontology lists below for enum fields.
 5. If you cannot extract a required field, leave it as empty list / null (NOT fabricated).
 6. Output MUST be a single JSON object with no markdown fences, no commentary, no prefix, no suffix.
+7. LANGUAGE: ALL textual content MUST be in Russian (русский язык), even if source document is in another language. This applies to:
+   - title (короткий заголовок на русском)
+   - body_markdown (всё описание, секции, абзацы — на русском)
+   - retrieval_tags (русские термины предметной области; технические идентификаторы вроде имён колонок/моделей остаются как есть)
+   Технические идентификаторы (doc_id, имена полей в feature_tables, источники, имена агентов) остаются в латинице — переводу подлежит только человекочитаемый текст.
 
 Allowed ontology values (use ONLY these):
 - domain: naval, air, ground, cyber, analytical, custom

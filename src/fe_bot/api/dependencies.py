@@ -348,11 +348,22 @@ class _DefaultSETUP05Fallback(_SETUP05Fallback):
     """Stub-fallback для dev: возвращает детерминированный draft."""
 
     def generate_draft(self, prompt: str, *, doc_type: str) -> _SETUP05Draft:
+        # Fallback всегда генерирует русский текст (см. OBS-LANG-01 / SETUP-08
+        # требование «RAG карточки на русском языке»).
         return _SETUP05Draft(
             doc_id="placeholder.x.v1",
             doc_type=doc_type,
-            title="Generated card",
-            body_markdown="Generated body content for RAG card. " * 5,
+            title="Карточка, сгенерированная резервным генератором",
+            body_markdown=(
+                "# Карточка из резервного генератора\n\n"
+                "## Описание\n\n"
+                "Эта карточка создана детерминированным fallback-генератором, "
+                "когда LLM (Ollama) была недоступна или дала невалидный ответ. "
+                "Содержимое — заглушка; требуется human review и редактирование "
+                "перед публикацией.\n\n"
+                "## Источник\n\n"
+                "См. поля source_files и source_sections в metadata.\n"
+            ),
             front_matter={
                 "doc_id": "placeholder.x.v1",
                 "doc_type": doc_type,
@@ -361,7 +372,7 @@ class _DefaultSETUP05Fallback(_SETUP05Fallback):
             },
             source_files=["src.md"],
             source_sections=["sec_001"],
-            retrieval_tags=["test", "generated"],
+            retrieval_tags=["заглушка", "резервный_генератор"],
         )
 
 
