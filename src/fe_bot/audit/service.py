@@ -96,6 +96,11 @@ class AuditAction(StrEnum):
     # Auth
     ACCESS_DENIED = "access.denied"
 
+    # SETUP-12 / T-S12-102: taxonomy audit actions.
+    TAXONOMY_CLASS_AUTO_CREATED = "taxonomy.class.auto_created"
+    TAXONOMY_CLASS_FORCE_MERGED = "taxonomy.class.force_merged"
+    TAXONOMY_CLASS_OVERFLOW = "taxonomy.class.overflow"
+
 
 class AuditOutcome(StrEnum):
     SUCCESS = "success"

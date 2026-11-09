@@ -8,6 +8,11 @@
 
 Нижестоящие агенты (data profiling, feature synthesis, model selection) ветвятся по этим слотам. Без них остальной workflow не на что опереть RAG retrieval или генерацию признаков.
 
+## Вход и выход
+
+- **Вход.** `ParsedUserInput`, `EvidencePack`, ответы пользователя на уточняющие вопросы.
+- **Выход.** `TaskDiscoveryResult` (`task_type`, `target_variable`, `classes`, `domain`, `data_source`, `required_latency`, `deployment_context`), записанный в `ContextMemory`.
+
 ## Пользовательский сценарий
 
 1. После того как [RUNTIME-02](RUNTIME-02-nlu.md) извлёк начальные слоты, `TaskDiscoveryAgent` дозаполняет остальное.
@@ -17,7 +22,7 @@
 ## Связанные требования
 
 - BR-FR-050..052 (task type, target variable, domain, data source).
-- BR-FR-Conv-004 (конкретные уточняющие вопросы при отсутствии слотов).
+- FR-Task-004 (конкретный уточняющий вопрос вместо угадывания при отсутствии слотов).
 - Поддерживаемые значения `task_type`: `classification`, `regression`, `clustering`, `anomaly_detection`, `ranking`.
 - Поддерживаемые значения `deployment_context`: `edge_device`, `shipboard_server`, `cloud`, `offline_research`, `operator_decision_support`.
 

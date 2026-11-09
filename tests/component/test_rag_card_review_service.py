@@ -6,6 +6,15 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from schemas.rag.ontology import (
+    ConfidenceLevel,
+    DocType,
+    Domain,
+    Phase,
+    TaskType,
+)
+from schemas.rag.rag_card import CardStatus, RAGCard
+from schemas.rag.rag_metadata import RAGMetadata
 
 from fe_bot.audit.service import AuditAction, AuditService, InMemoryAuditLog
 from fe_bot.observability.metrics import MetricsRegistry
@@ -30,15 +39,6 @@ from fe_bot.setup.card_review.version_repository import (
     InMemoryRAGCardVersionRepository,
 )
 from fe_bot.setup.events import EventBus
-from schemas.rag.ontology import (
-    ConfidenceLevel,
-    DocType,
-    Domain,
-    Phase,
-    TaskType,
-)
-from schemas.rag.rag_card import CardStatus, RAGCard
-from schemas.rag.rag_metadata import RAGMetadata
 
 pytestmark = pytest.mark.component
 

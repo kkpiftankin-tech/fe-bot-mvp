@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
-
 from schemas.rag.rag_card import CardStatus
 from schemas.setup.rag_card_version import RAGCardVersionDTO, bump_version
 

@@ -16,7 +16,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # Event type discriminators (SSE / логи / metrics).
 EVENT_REVIEW_STARTED = "rag_card.review_started"
 EVENT_APPROVED = "rag_card.approved"

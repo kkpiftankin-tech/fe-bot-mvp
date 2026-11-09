@@ -1,0 +1,200 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "SETUP-12 / T-S12-101: Hierarchical Taxonomy Classification health. Uses metrics emitted by fe_bot.taxonomy.metrics.TaxonomyMetrics (see docs/tech-debt/TD-HTC-003-drift-alerts.md).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "row",
+      "id": 100,
+      "title": "Classification volume",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "id": 1,
+      "title": "Classification outcomes per second",
+      "description": "Rate of LLM classification events split by outcome (existing / new / force_merge / class_overflow / unknown). Rising 'force_merge' or 'class_overflow' = vocabulary explosion.",
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (outcome) (rate(taxonomy_classification_total[5m]))",
+          "legendFormat": "{{outcome}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 }
+    },
+    {
+      "type": "timeseries",
+      "id": 2,
+      "title": "Classifications by level",
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (level) (rate(taxonomy_classification_total[5m]))",
+          "legendFormat": "L{{level}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 }
+    },
+    {
+      "type": "row",
+      "id": 101,
+      "title": "Auto-allocation & overflow",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 }
+    },
+    {
+      "type": "timeseries",
+      "id": 3,
+      "title": "New classes auto-created per hour",
+      "description": "Rate of new classes added to registry. Spikes indicate vocabulary expansion.",
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (level) (increase(taxonomy_new_class_total[1h]))",
+          "legendFormat": "L{{level}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 }
+    },
+    {
+      "type": "timeseries",
+      "id": 4,
+      "title": "Force-merge events by parent_path",
+      "description": "Top-10 hotspots where capacity is exhausted. Sustained activity here = restructure candidate.",
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (parent_path) (increase(taxonomy_force_merge_total[24h])))",
+          "legendFormat": "{{parent_path}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 }
+    },
+    {
+      "type": "row",
+      "id": 102,
+      "title": "Cascading unknown",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 }
+    },
+    {
+      "type": "timeseries",
+      "id": 5,
+      "title": "Cascading-unknown rate by level",
+      "description": "LLM said 'unknown' on this level — drilling stopped. High rate at L0 = bootstrap problem.",
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (level) (rate(taxonomy_llm_unknown_total[5m]))",
+          "legendFormat": "L{{level}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 }
+    },
+    {
+      "type": "stat",
+      "id": 6,
+      "title": "L0 unknown share (last 1h)",
+      "description": "Fraction of sections that failed L0 classification. > 30% sustained = LLM quality regression.",
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(taxonomy_llm_unknown_total{level=\"0\"}[1h])) / sum(increase(taxonomy_classification_total{level=\"0\"}[1h]))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.15 },
+              { "color": "red", "value": 0.3 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 }
+    },
+    {
+      "type": "row",
+      "id": 103,
+      "title": "Latency",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 }
+    },
+    {
+      "type": "timeseries",
+      "id": 7,
+      "title": "Classification latency p95 by level",
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (level, le) (rate(taxonomy_classification_latency_seconds_bucket[5m])))",
+          "legendFormat": "L{{level}} p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 }
+    },
+    {
+      "type": "row",
+      "id": 104,
+      "title": "Capacity",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 }
+    },
+    {
+      "type": "timeseries",
+      "id": 8,
+      "title": "Slots used per parent_path",
+      "description": "Top-20 most-loaded parent_paths. 10 = capacity exhausted (overflow imminent).",
+      "datasource": { "type": "prometheus" },
+      "targets": [
+        {
+          "expr": "topk(20, taxonomy_slots_used)",
+          "legendFormat": "L{{level}} / {{parent_path}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "max": 10,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 7 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 37 }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["fe-bot", "taxonomy", "setup-12", "htc"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "FE-Bot · Taxonomy Health (HTC)",
+  "uid": "fe-bot-taxonomy-health",
+  "version": 1,
+  "weekStart": ""
+}

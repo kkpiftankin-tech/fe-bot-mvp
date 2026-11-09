@@ -8,5 +8,7 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     css: false,
+    // tsc -b в этом репо эмитит дублирующие .js рядом с .tsx. Берём только TS-источники.
+    include: ["src/**/*.test.{ts,tsx}"],
   },
 });

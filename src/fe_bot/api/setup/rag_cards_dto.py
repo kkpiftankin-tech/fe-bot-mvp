@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+from schemas.common.defaults import DEFAULT_LLM_MODEL
 from schemas.setup.rag_card_generation_job import (
     RAGCardGenerationErrorCode,
     RAGCardGenerationJobStatus,
@@ -38,7 +39,7 @@ class GenerateRAGCardsRequest(_Forbid):
     ontology_version: str = "ontology_v1"
     metadata_schema_version: str = "rag_metadata_v1"
     prompt_template_version: str = "rag_card_prompts_v1"
-    llm_model: str = "llama3.2"
+    llm_model: str = DEFAULT_LLM_MODEL
     options: GenerateRAGCardsOptions = Field(default_factory=GenerateRAGCardsOptions)
     generation_request_id: str | None = None
 

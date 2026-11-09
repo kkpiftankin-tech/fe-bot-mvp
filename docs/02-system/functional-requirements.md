@@ -15,23 +15,34 @@
 
 У каждого FR есть хотя бы одна фича в [features/](features/) и хотя бы один тест в [../../tests/](../../tests/).
 
+## Область действия документа
+
+Требования ниже описывают **Runtime** (стадию 2) и сквозное поведение системы. Требования двух других стадий живут в файлах фич:
+
+- **Setup** — `BR-FR-Setup-*` в разделах «Связанные требования» файлов [SETUP-01..SETUP-13](features/feature-index.md) (загрузка и валидация файлов, парсинг, генерация и ревью карточек, чанкование, индексация, публикация);
+- **Analytics** — критерии приёмки файлов [ANALYTICS-01..ANALYTICS-09](features/feature-index.md).
+
+Что система принимает и отдаёт — в [system-overview.md](system-overview.md#входы-и-выходы-системы).
+
 ## Conversation (Conv)
 
 - **FR-Conv-001.** Система ОБЯЗАНА принимать свободный текст и `conversation_id` через HTTP-эндпоинт.
 - **FR-Conv-002.** Система ОБЯЗАНА загружать и сохранять `ContextMemory` для данного `conversation_id` между шагами.
 - **FR-Conv-003.** Система ОБЯЗАНА возвращать следующий промпт агента или требуемый уточняющий вопрос после каждого шага.
 - **FR-Conv-004.** Система ОБЯЗАНА не хранить состояние агента только в истории чата; `ContextMemory` — источник истины.
+- **FR-Conv-005.** Система ОБЯЗАНА переходить к следующей фазе только после выполнения completion criteria текущей фазы; при одной и той же `ContextMemory` переход ОБЯЗАН быть детерминированным. Зеркалит `BR-FR-031`.
+- **FR-Conv-006.** Система ОБЯЗАНА позволять пользователю до экспорта вернуться к ранее пройденной фазе и изменить целевую переменную, источник данных, поля, домен, требование к интерпретируемости, число признаков, размер выборки, модель или формат экспорта; при возврате зависимые (downstream) слоты `ContextMemory` ОБЯЗАНЫ инвалидироваться. Зеркалит `BR-FR-032`.
 
 ## Task Discovery (Task)
 
-- **FR-Task-001.** Система ОБЯЗАНА извлекать `task_type` ∈ {classification, regression, clustering, anomaly_detection, recommendation, other} из запроса.
+- **FR-Task-001.** Система ОБЯЗАНА извлекать `task_type` ∈ {classification, regression, clustering, anomaly_detection, ranking} из запроса (то же множество — в [RUNTIME-03](features/RUNTIME-03-task-discovery.md) и `ContextMemory`).
 - **FR-Task-002.** Система ОБЯЗАНА извлекать или запрашивать `target_variable` и (для классификации) `classes`.
 - **FR-Task-003.** Система ОБЯЗАНА извлекать или запрашивать `domain` и `data_source`.
 - **FR-Task-004.** Когда поля задачи не могут быть выведены, система ОБЯЗАНА задать целевой уточняющий вопрос, а не угадывать.
 
 ## Data Profiling (Data)
 
-- **FR-Data-001.** Система ОБЯЗАНА собирать `data_volume` (число строк) и `data_type` (tabular, time_series, mixed).
+- **FR-Data-001.** Система ОБЯЗАНА собирать `data_volume` (число строк) и `data_type` ∈ {tabular, time_series, image, tensor, graph, event_log, mixed}. Генерация синтетических данных в MVP поддерживает только `tabular` ([RUNTIME-10](features/RUNTIME-10-data-generation.md)).
 - **FR-Data-002.** Система ОБЯЗАНА перечислять `fields` с `name`, `dtype`, и опционально `unit`, `role`.
 - **FR-Data-003.** Система ОБЯЗАНА захватывать `missing_data_strategy` ∈ {drop, fill_zero, fill_mean, fill_median, forward_fill, none}.
 - **FR-Data-004.** Для классификации система ОБЯЗАНА захватывать `class_distribution`, чьи приоры суммируются к 1.0 ± tolerance.

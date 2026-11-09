@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fe_bot.setup.card_review.log_repository import InMemoryReviewLogRepository
 from schemas.setup.review_log import ReviewLogDTO, ReviewLogEventType
+
+from fe_bot.setup.card_review.log_repository import InMemoryReviewLogRepository
 
 
 def _now() -> datetime:

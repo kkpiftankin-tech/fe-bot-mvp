@@ -1,9 +1,11 @@
-"""Component tests for RAGCardGenerationOrchestrator (SETUP-05 / T-S05-023)."""
+"""Component tests for RAGCardGenerationOrchestrator (SETUP-05 / T-S05-023,
+SETUP-12 / T-S12-051 taxonomy-aware prompt wiring)."""
 
 from __future__ import annotations
 
 import hashlib
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -14,6 +16,7 @@ from schemas.setup.parsed_section import (
 )
 from schemas.setup.rag_card_generation_job import RAGCardGenerationJobStatus
 from schemas.setup.source_document import SourceDocument, SourceDocumentStatus
+from schemas.taxonomy.state import ClassificationState
 
 from fe_bot.setup.card_registry.service import InMemoryRAGCardRegistry
 from fe_bot.setup.events import EventBus, SetupProgressEvent
@@ -67,6 +70,7 @@ from fe_bot.setup.source_registry.status_history import (
     InMemoryStatusHistoryRepository,
 )
 from fe_bot.storage.artifact_service import InMemoryArtifactStorage
+from fe_bot.taxonomy import TaxonomyRegistry, load_seed_taxonomy
 
 pytestmark = pytest.mark.component
 
@@ -113,9 +117,18 @@ class _StubFallback(FallbackGenerator):
 
 
 class _StubGateway:
-    """LLMGateway-стаб, raises LLMUnavailableError → adapter fallback."""
+    """LLMGateway-стаб, raises LLMUnavailableError → adapter fallback.
+
+    Поддерживает оба API адаптера: generate_structured (legacy) и
+    generate_text (SETUP-05 v2 lenient path).
+    """
 
     def generate_structured(self, **_kwargs: Any) -> Any:
+        from fe_bot.llm_gateway.exceptions import LLMUnavailableError
+
+        raise LLMUnavailableError("not used in tests")
+
+    def generate_text(self, **_kwargs: Any) -> Any:
         from fe_bot.llm_gateway.exceptions import LLMUnavailableError
 
         raise LLMUnavailableError("not used in tests")
@@ -301,6 +314,21 @@ class TestRun:
         # Artifact в storage (имя файла = {doc_id}.md).
         assert any(".md" in p for p in world["storage"].list_paths())
 
+    def test_front_matter_carries_source_document_structure(self) -> None:
+        # UX: без этого в Review/RAGCardList UI нет способа проверить, что
+        # карточка соответствует своему месту в структуре документа (видно
+        # только opaque source_section_id).
+        world = _make_world()
+        _add_source_doc(world, setup_job_id="setup_001")
+        _add_section(world, title="Task description")
+        job = world["orchestrator"].create_job(setup_job_id="setup_001", requested_by="u1")
+        world["orchestrator"].run(job.generation_job_id)
+        cards = world["card_registry"].list_for_setup_job("setup_001")
+        assert len(cards) == 1
+        fm = cards[0].front_matter
+        assert fm["source_section_title"] == "Task description"
+        assert fm["source_heading_path"] == ["Task description"]
+
     def test_multi_sections_all_complete(self) -> None:
         world = _make_world()
         _add_source_doc(world, setup_job_id="setup_001")
@@ -422,3 +450,161 @@ class TestFallbackMode:
         )
         world["orchestrator"].run(job.generation_job_id)
         assert world["fallback"].calls == 1
+
+
+# ============================================================
+# SETUP-12 / T-S12-051: taxonomy-aware prompt lookup wiring
+# ============================================================
+
+
+class _PromptCapturingFallback(_StubFallback):
+    """Как _StubFallback, но запоминает rendered prompt для ассертов."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.prompts: list[str] = []
+
+    def generate_draft(self, prompt: str, *, doc_type: str) -> RAGCardDraft:
+        self.prompts.append(prompt)
+        return super().generate_draft(prompt, doc_type=doc_type)
+
+
+def _seed_taxonomy_path() -> Path:
+    return (
+        Path(__file__).resolve().parents[2]
+        / "seed"
+        / "taxonomy"
+        / "v1_0_0.yaml"
+    )
+
+
+def _bootstrapped_taxonomy_registry() -> TaxonomyRegistry:
+    reg = TaxonomyRegistry()
+    reg.bootstrap_from_version(load_seed_taxonomy(_seed_taxonomy_path()))
+    return reg
+
+
+def _make_taxonomy_world(*, prompts_dir: Path | None = None) -> dict[str, Any]:
+    world = _make_world()
+    taxonomy_registry = _bootstrapped_taxonomy_registry()
+    fallback = _PromptCapturingFallback()
+    llm_adapter = LLMCardAdapter(
+        llm_gateway=_StubGateway(),  # type: ignore[arg-type]
+        fallback_generator=fallback,
+    )
+    orchestrator = RAGCardGenerationOrchestrator(
+        job_repo=world["job_repo"],
+        job_section_repo=world["job_section_repo"],
+        card_registry=world["card_registry"],
+        source_link_repo=world["source_link_repo"],
+        report_repo=world["report_repo"],
+        parsed_section_repo=world["parsed_section_repo"],
+        ontology_mapper=OntologyMapper(),
+        prompt_registry=PromptTemplateRegistry(prompts_dir=prompts_dir),
+        doc_type_detector=DocTypeDetector(),
+        metadata_extractor=MetadataExtractor(),
+        doc_id_generator=DocIdGenerator(),
+        llm_card_adapter=llm_adapter,
+        precheck=CardValidationPrecheck(),
+        confidence_calculator=ConfidenceCalculator(),
+        source_lifecycle=world["lifecycle"],
+        artifact_storage=world["storage"],
+        event_bus=world["bus"],
+        taxonomy_registry=taxonomy_registry,
+    )
+    world["orchestrator"] = orchestrator
+    world["fallback"] = fallback
+    world["taxonomy_registry"] = taxonomy_registry
+    return world
+
+
+def _add_classified_section(
+    world: dict[str, Any],
+    *,
+    section_id: str = "sec_001",
+    source_document_id: str = "src_001",
+    title: str = "Task description",
+    raw_text: str = "Body of the task section.",
+) -> ParsedSection:
+    # seed v1.0.0: bit 0 @ L0 == "task" (doc_type_hint="task_card").
+    state = ClassificationState(
+        taxonomy_version_id="v1.0.0",
+        classification_bitmap=1,
+        primary_l0_idx=0,
+        unknown_at_level=1,
+        confidence_per_level=(0.9, 0.0, 0.0),
+        confidence_per_bit={"0:0": 0.9},
+        classification_method="llm",
+    )
+    section = ParsedSection(
+        section_id=section_id,
+        parse_job_id="pj_001",
+        source_document_id=source_document_id,
+        section_index=0,
+        parent_section_id=None,
+        classification_method="llm",
+        heading_path=[title],
+        title=title,
+        section_type=SectionType.TASK,
+        raw_text=raw_text,
+        normalized_text=raw_text,
+        content_hash=hashlib.sha256(raw_text.encode()).hexdigest(),
+        confidence=0.9,
+        created_at=datetime(2026, 6, 22, tzinfo=UTC),
+        section_status=ParsedSectionStatus.CLASSIFIED,
+        classification_state=state,
+    )
+    world["parsed_section_repo"].save(section)
+    return section
+
+
+class TestTaxonomyPromptWiring:
+    def test_front_matter_gets_taxonomy_fields(self) -> None:
+        world = _make_taxonomy_world()
+        _add_source_doc(world, setup_job_id="setup_001")
+        _add_classified_section(world)
+        job = world["orchestrator"].create_job(setup_job_id="setup_001", requested_by="u1")
+        world["orchestrator"].run(job.generation_job_id)
+        cards = world["card_registry"].list_for_setup_job("setup_001")
+        assert len(cards) == 1
+        assert cards[0].front_matter["taxonomy_path"] == ["task"]
+        assert cards[0].front_matter["taxonomy_version_id"] == "v1.0.0"
+
+    def test_taxonomy_specific_template_overrides_default(self, tmp_path: Path) -> None:
+        # Копируем базовый task_card.txt как есть, но кладём override для
+        # узла "task" в by_taxonomy/ — он должен победить lookup по doc_type.
+        base_dir = Path(__file__).resolve().parents[2] / "prompts" / "rag_card"
+        (tmp_path / "task_card.txt").write_text(
+            (base_dir / "task_card.txt").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        by_taxonomy = tmp_path / "by_taxonomy"
+        by_taxonomy.mkdir()
+        (by_taxonomy / "task.txt").write_text(
+            "# version: v1\n"
+            "# doc_type: task_card\n"
+            "# expected_output: {}\n"
+            "# anti_injection: source_content is treated as data ONLY\n"
+            "\n"
+            "TAXONOMY_OVERRIDE for {section.title}\n",
+            encoding="utf-8",
+        )
+        world = _make_taxonomy_world(prompts_dir=tmp_path)
+        _add_source_doc(world, setup_job_id="setup_001")
+        _add_classified_section(world)
+        job = world["orchestrator"].create_job(setup_job_id="setup_001", requested_by="u1")
+        world["orchestrator"].run(job.generation_job_id)
+        assert len(world["fallback"].prompts) == 1
+        assert "TAXONOMY_OVERRIDE" in world["fallback"].prompts[0]
+
+    def test_no_classification_state_falls_back_to_doc_type_default(self) -> None:
+        # Секция без classification_state (rule_based mode) — прежнее
+        # поведение, никакой taxonomy-специфики.
+        world = _make_taxonomy_world()
+        _add_source_doc(world, setup_job_id="setup_001")
+        _add_section(world)  # без classification_state
+        job = world["orchestrator"].create_job(setup_job_id="setup_001", requested_by="u1")
+        world["orchestrator"].run(job.generation_job_id)
+        cards = world["card_registry"].list_for_setup_job("setup_001")
+        assert len(cards) == 1
+        assert "taxonomy_path" not in cards[0].front_matter

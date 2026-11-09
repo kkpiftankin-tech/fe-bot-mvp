@@ -189,10 +189,7 @@ def validate_batch_limits(
     if files_count > MAX_BATCH_FILES_COUNT:
         raise UploadValidationError(
             UploadErrorCode.BATCH_TOO_LARGE,
-            (
-                f"Batch contains {files_count} files; "
-                f"maximum is {MAX_BATCH_FILES_COUNT}"
-            ),
+            (f"Batch contains {files_count} files; maximum is {MAX_BATCH_FILES_COUNT}"),
             details={
                 "reason": "too_many_files",
                 "files_count": files_count,

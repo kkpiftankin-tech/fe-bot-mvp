@@ -1,8 +1,9 @@
 # Импортируем функцию вызова Ollama.
-from app.llm import call_ollama
-
 # Импортируем TypedDict для типизации state.
 from typing import TypedDict
+
+from app.llm import call_ollama
+
 
 # Описываем состояние, которым обмениваются узлы LangGraph.
 class AgentState(TypedDict):

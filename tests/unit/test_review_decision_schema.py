@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
-
 from schemas.setup.review_decision import (
     RegenerateReason,
     RejectReason,

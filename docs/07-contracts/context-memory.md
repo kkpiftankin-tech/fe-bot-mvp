@@ -62,8 +62,8 @@ class ContextMemory(BaseModel):
     update_frequency: str | None = None
     fields: list[FieldSpec] = Field(default_factory=list)
     missing_data_strategy: Literal[
-        "none", "drop_rows", "fill_zero", "fill_mean", "fill_median",
-        "forward_fill", "model_based_imputation", "add_missing_indicators",
+        "none", "drop", "fill_zero", "fill_mean", "fill_median",
+        "forward_fill",
     ] | None = None
     class_distribution: ClassDistribution | None = None
     temporal_importance: bool | None = None

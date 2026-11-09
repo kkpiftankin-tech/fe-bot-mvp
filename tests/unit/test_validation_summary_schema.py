@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
-
 from schemas.setup.validation_summary import ValidationSummaryDTO
 
 

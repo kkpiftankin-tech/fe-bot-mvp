@@ -52,5 +52,8 @@ node_modules/
 *.log
 logs/
 
+# Dev-only JSON snapshot persistence (FE_BOT_STATE_DIR)
+var/
+
 # Build artifacts (frontend dist already covered by frontend/.gitignore)
 *.tsbuildinfo

@@ -28,21 +28,15 @@ class StatusHistoryRepository(Protocol):
         """
         ...
 
-    def list_for_document(
-        self, source_document_id: str
-    ) -> list[SourceStatusHistoryEntry]:
+    def list_for_document(self, source_document_id: str) -> list[SourceStatusHistoryEntry]:
         """Все записи для документа в хронологическом порядке."""
         ...
 
-    def get_by_event_id(
-        self, event_id: str
-    ) -> SourceStatusHistoryEntry | None:
+    def get_by_event_id(self, event_id: str) -> SourceStatusHistoryEntry | None:
         """Поиск по event_id (для идемпотентности retry)."""
         ...
 
-    def latest_for_document(
-        self, source_document_id: str
-    ) -> SourceStatusHistoryEntry | None:
+    def latest_for_document(self, source_document_id: str) -> SourceStatusHistoryEntry | None:
         """Последний переход для документа (None если истории нет)."""
         ...
 
@@ -68,23 +62,17 @@ class InMemoryStatusHistoryRepository:
             self._by_document.setdefault(entry.source_document_id, []).append(stored)
             return stored.model_copy(deep=True)
 
-    def list_for_document(
-        self, source_document_id: str
-    ) -> list[SourceStatusHistoryEntry]:
+    def list_for_document(self, source_document_id: str) -> list[SourceStatusHistoryEntry]:
         with self._lock:
             entries = self._by_document.get(source_document_id, [])
             return [e.model_copy(deep=True) for e in entries]
 
-    def get_by_event_id(
-        self, event_id: str
-    ) -> SourceStatusHistoryEntry | None:
+    def get_by_event_id(self, event_id: str) -> SourceStatusHistoryEntry | None:
         with self._lock:
             entry = self._by_event.get(event_id)
             return entry.model_copy(deep=True) if entry else None
 
-    def latest_for_document(
-        self, source_document_id: str
-    ) -> SourceStatusHistoryEntry | None:
+    def latest_for_document(self, source_document_id: str) -> SourceStatusHistoryEntry | None:
         with self._lock:
             entries = self._by_document.get(source_document_id, [])
             if not entries:

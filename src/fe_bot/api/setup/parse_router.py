@@ -37,9 +37,12 @@ from fe_bot.api.dependencies import (
 )
 from fe_bot.api.setup.parse_dto import (
     CancelParseJobResponse,
+    ClassificationBitDTO,
+    ClassificationPromptDTO,
     CreateParseJobRequest,
     DocumentReportDTO,
     PaginationDTO,
+    ParsedSectionDetailDTO,
     ParsedSectionListItemDTO,
     ParsedSectionsResponse,
     ParseJobReportResponse,
@@ -73,6 +76,10 @@ from fe_bot.setup.repository import JobNotFoundError
 router = APIRouter(prefix="/api/v1/setup", tags=["parse"])
 
 _CROSS_JOB_PERMISSIONS = (Permission.KB_PUBLISH, Permission.KB_CARD_REVIEW)
+
+# Запас на случай более глубоких деревьев классификаторов, чем текущие 6
+# уровней (asu_v1.txt) — тот же запас, что FragmentClassifier._DEFAULT_MAX_LEVELS.
+_DEFAULT_MAX_PROMPT_LEVELS = 10
 
 
 # ============================================================
@@ -141,7 +148,258 @@ def _to_parse_job_response(job: ParseJob) -> ParseJobResponse:
     )
 
 
+def _build_section_detail(section: ParsedSection) -> ParsedSectionDetailDTO:
+    """Полная детализация секции + расшифровка bitmap'а через реестр."""
+    from fe_bot.api.dependencies import (
+        _taxonomy_mode,
+        get_taxonomy_registry,
+    )
+
+    cs_dict = (
+        section.classification_state.model_dump()
+        if section.classification_state is not None
+        else None
+    )
+    bits: list[ClassificationBitDTO] = []
+    if (
+        section.classification_state is not None
+        and _taxonomy_mode() == "llm"
+    ):
+        try:
+            registry = get_taxonomy_registry()
+            bits = _resolve_classification_bits(
+                section.classification_state, registry
+            )
+        except Exception:  # noqa: BLE001 — best-effort enrichment
+            pass
+    return ParsedSectionDetailDTO(
+        section_id=section.section_id,
+        parse_job_id=section.parse_job_id,
+        source_document_id=section.source_document_id,
+        title=section.title,
+        heading_path=list(section.heading_path),
+        section_index=section.section_index,
+        parent_section_id=section.parent_section_id,
+        section_type=section.section_type,
+        section_status=section.section_status,
+        confidence=section.confidence,
+        content_hash=section.content_hash,
+        raw_text=section.raw_text,
+        normalized_text=section.normalized_text,
+        start_offset=section.start_offset,
+        end_offset=section.end_offset,
+        metadata=dict(section.metadata or {}),
+        classification_method=section.classification_method,
+        classification_state=cs_dict,
+        classification_bits=bits,
+        classifier_result=section.classifier_result,
+    )
+
+
+def _resolve_classification_bits(
+    state, registry
+) -> list[ClassificationBitDTO]:  # noqa: ANN001 — local helper
+    """Расшифровывает bitmap каждого set-бита через taxonomy_bit_registry."""
+    from schemas.taxonomy.state import BITS_PER_LEVEL
+
+    out: list[ClassificationBitDTO] = []
+    version_id = state.taxonomy_version_id
+    # Resolve primary L0 slug для parent_path L1.
+    primary_l0_slug: str | None = None
+    if state.primary_l0_idx is not None:
+        try:
+            entry = registry.get_by_bit(
+                version_id=version_id,
+                level=0,
+                parent_path="",
+                bit_index=state.primary_l0_idx,
+            )
+            primary_l0_slug = entry.class_slug
+        except Exception:  # noqa: BLE001
+            primary_l0_slug = None
+    primary_l1_slug: str | None = None
+    if state.primary_l1_idx is not None and primary_l0_slug is not None:
+        try:
+            entry = registry.get_by_bit(
+                version_id=version_id,
+                level=1,
+                parent_path=primary_l0_slug,
+                bit_index=state.primary_l1_idx,
+            )
+            primary_l1_slug = entry.class_slug
+        except Exception:  # noqa: BLE001
+            primary_l1_slug = None
+
+    for level in range(3):
+        bits = state.bits_at(level)
+        for bit in bits:
+            parent_path = ""
+            if level == 1:
+                parent_path = primary_l0_slug or ""
+            elif level == 2:
+                parent_path = (
+                    f"{primary_l0_slug}.{primary_l1_slug}"
+                    if primary_l0_slug and primary_l1_slug
+                    else ""
+                )
+            if level >= 1 and not parent_path:
+                continue  # bit некому расшифровать (broken state)
+            try:
+                entry = registry.get_by_bit(
+                    version_id=version_id,
+                    level=level,
+                    parent_path=parent_path,
+                    bit_index=bit,
+                )
+            except Exception:  # noqa: BLE001
+                continue
+            is_primary = (
+                (level == 0 and bit == state.primary_l0_idx)
+                or (level == 1 and bit == state.primary_l1_idx)
+                or (
+                    level == 2
+                    and len(state.bits_at(2)) == 1
+                    and bit == bits[0]
+                )
+            )
+            conf_key = f"{level}:{bit}"
+            conf = state.confidence_per_bit.get(conf_key)
+            out.append(
+                ClassificationBitDTO(
+                    level=level,
+                    bit_index=bit,
+                    class_slug=entry.class_slug,
+                    display_name_ru=entry.display_name_ru,
+                    doc_type_hint=entry.doc_type_hint,
+                    confidence=conf,
+                    is_primary=is_primary,
+                )
+            )
+    _ = BITS_PER_LEVEL  # для явного importа-проверки
+    return out
+
+
+def _build_prompt_previews(section: ParsedSection) -> list[ClassificationPromptDTO]:
+    """Возвращает preview промптов, которыми классифицируется секция.
+
+    SETUP-13 (ADR-HTC-09): активный классификатор — дерево произвольной
+    глубины (``ClassifierTreeService`` / ``ClassifierPromptRenderer``), а
+    не legacy 3-уровневый L0/L1/L2 bitmap (SETUP-12, ``fe_bot.taxonomy.*``).
+    Раньше эта функция рендерила промпты ИСКЛЮЧИТЕЛЬНО через legacy-реестр
+    и ``section.classification_state`` — для секций, классифицированных
+    деревом (``classifier_result`` заполнен, ``classification_state`` —
+    нет), это давало prompt preview от СОВСЕМ ДРУГОГО (legacy) дерева
+    классов, не имеющего отношения к тому, что реально видела LLM.
+
+    Воспроизводит фактический путь обхода ``FragmentClassifier.classify()``
+    по ``section.classifier_result.path`` (или только корень, если секция
+    ещё не классифицирована) и рендерит промпт на каждом уровне этого пути
+    текущим ``ClassifierPromptRenderer`` + текущим активным деревом. Это не
+    исторический prompt (не сохраняется), а «как бы выглядел запрос
+    сейчас» — полезно для отладки и понимания, что видит LLM.
+    """
+    from fe_bot.api.dependencies import _taxonomy_mode, get_classifier_service
+
+    if _taxonomy_mode() != "llm":
+        return [
+            ClassificationPromptDTO(
+                level=0,
+                parent_path="",
+                candidates_count=0,
+                free_slots_count=0,
+                rendered_prompt="",
+                can_render=False,
+                reason="Taxonomy mode is 'rule_based' — no LLM prompts.",
+            )
+        ]
+
+    from fe_bot.classifier.prompt_renderer import ClassifierPromptRenderer
+    from fe_bot.classifier.tree_repository import NoActiveTreeError
+
+    tree_service = get_classifier_service()
+    try:
+        tree = tree_service.get_active_tree()
+    except NoActiveTreeError:
+        return [
+            ClassificationPromptDTO(
+                level=0,
+                parent_path="",
+                candidates_count=0,
+                free_slots_count=0,
+                rendered_prompt="",
+                can_render=False,
+                reason="Нет активного дерева классификаторов (SETUP-13).",
+            )
+        ]
+    if not tree.root_ids:
+        return [
+            ClassificationPromptDTO(
+                level=0,
+                parent_path="",
+                candidates_count=0,
+                free_slots_count=0,
+                rendered_prompt="",
+                can_render=False,
+                reason="Активное дерево классификаторов пусто.",
+            )
+        ]
+
+    section_text = section.normalized_text or section.raw_text or "(empty)"
+    path_steps = iter(section.classifier_result.path if section.classifier_result else [])
+    renderer = ClassifierPromptRenderer()
+    out: list[ClassificationPromptDTO] = []
+
+    # Воспроизводим тот же обход, что FragmentClassifier.classify() делал
+    # (или сделал бы) реально: на каждом нелистовом узле рендерится промпт,
+    # затем спускаемся к выбранному на этом уровне ребёнку (по
+    # classifier_result.path). Останавливаемся на листе или там, где путь
+    # закончился (LLM не выбрала ребёнка / остановилась по confidence) —
+    # то есть рендерим ровно те уровни, на которых реально был/будет вызов LLM.
+    current_id = tree.root_ids[0]
+    for level in range(_DEFAULT_MAX_PROMPT_LEVELS):
+        node = tree.nodes.get(current_id)
+        if node is None or node.is_leaf:
+            break
+        children = tree.get_children(current_id)
+        try:
+            rendered = renderer.render(tree, current_id, fragment_text=section_text)
+            out.append(
+                ClassificationPromptDTO(
+                    level=level,
+                    parent_path=" → ".join(tree.get_path(current_id)),
+                    candidates_count=len(children),
+                    free_slots_count=0,
+                    rendered_prompt=rendered,
+                    can_render=True,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            out.append(
+                ClassificationPromptDTO(
+                    level=level,
+                    parent_path=" → ".join(tree.get_path(current_id)),
+                    candidates_count=len(children),
+                    free_slots_count=0,
+                    rendered_prompt="",
+                    can_render=False,
+                    reason=f"Renderer failed: {exc}",
+                )
+            )
+        step = next(path_steps, None)
+        if step is None or step.node_id not in {c.node_id for c in children}:
+            break
+        current_id = step.node_id
+    return out
+
+
 def _to_section_list_item(section: ParsedSection) -> ParsedSectionListItemDTO:
+    # SETUP-12: сериализуем classification_state как dict (frontend читает
+    # optional field). None для rule_based mode.
+    cs_dict = (
+        section.classification_state.model_dump()
+        if section.classification_state is not None
+        else None
+    )
     return ParsedSectionListItemDTO(
         section_id=section.section_id,
         source_document_id=section.source_document_id,
@@ -153,6 +411,9 @@ def _to_section_list_item(section: ParsedSection) -> ParsedSectionListItemDTO:
         section_index=section.section_index,
         parent_section_id=section.parent_section_id,
         content_hash=section.content_hash,
+        classification_method=section.classification_method,
+        classification_state=cs_dict,
+        classifier_result=section.classifier_result,
     )
 
 
@@ -210,6 +471,97 @@ def create_parse_job(
             },
         ) from exc
     return _to_parse_job_response(job)
+
+
+# ============================================================
+# Run ParseJob synchronously (T-S04-020/023 — UI/CLI trigger).
+# ============================================================
+
+
+@router.post(
+    "/{setup_job_id}/parse-jobs/{parse_job_id}/run",
+    response_model=ParseJobResponse,
+    summary="Run ParseJob synchronously (T-S04-020)",
+)
+def run_parse_job(
+    setup_job_id: str = Path(..., min_length=1),
+    parse_job_id: str = Path(..., min_length=1),
+    principal: Principal = Depends(require_permission(Permission.KB_PARSE_RUN)),
+    orchestrator: SetupOrchestrator = Depends(get_orchestrator),
+    parser_orchestrator: DocumentParserOrchestrator = Depends(get_document_parser_orchestrator),
+    parse_job_repo: InMemoryParseJobRepository = Depends(get_parse_job_repo),
+) -> ParseJobResponse:
+    _load_job(
+        orchestrator=orchestrator,
+        setup_job_id=setup_job_id,
+        principal=principal,
+    )
+    job = _load_parse_job(parse_job_repo=parse_job_repo, parse_job_id=parse_job_id)
+    _ensure_parse_job_in_setup(job, setup_job_id)
+    if job.is_terminal:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "PARSE_JOB_TERMINAL",
+                "message": f"ParseJob is in terminal state {job.status.value}",
+                "current_status": job.status.value,
+            },
+        )
+    final = parser_orchestrator.run(parse_job_id)
+
+    # SETUP-01 UX: авто-продвижение setup_job после завершения парсинга,
+    # чтобы прогресс на главной корректно отражал реальное состояние
+    # (иначе setup_job'ы с успешным парсингом застревают на 5%).
+    _sync_setup_job_after_parse(
+        orchestrator=orchestrator,
+        setup_job_id=setup_job_id,
+        parse_final=final,
+    )
+
+    return _to_parse_job_response(final)
+
+
+def _sync_setup_job_after_parse(
+    *,
+    orchestrator: SetupOrchestrator,
+    setup_job_id: str,
+    parse_final: object,
+) -> None:
+    """Продвигает setup_job из FILES_UPLOADED → SECTIONS_EXTRACTED
+    (или → FAILED). Тихо игнорирует ошибки (advance идемпотентен —
+    повторные вызовы для уже-продвинутого job'а безопасны).
+    """
+    from schemas.setup.rag_setup_job import SetupJobStatus
+
+    try:
+        current_job = orchestrator.get_job(setup_job_id)
+    except Exception:
+        return
+    # Не откатываем прогресс: если уже дальше SECTIONS_EXTRACTED — не трогаем.
+    if current_job.status != SetupJobStatus.FILES_UPLOADED:
+        return
+
+    pj_status = getattr(parse_final, "status", None)
+    pj_status_value = pj_status.value if pj_status is not None else ""
+    total_sections = getattr(parse_final, "total_sections", 0)
+
+    try:
+        if pj_status_value in {"completed", "partial_success"} and total_sections > 0:
+            orchestrator.advance(
+                setup_job_id,
+                SetupJobStatus.SECTIONS_EXTRACTED,
+                message=f"Extracted {total_sections} section(s)",
+                metrics={"sections_total": total_sections},
+            )
+        elif pj_status_value == "failed":
+            orchestrator.advance(
+                setup_job_id,
+                SetupJobStatus.FAILED,
+                message="Parse job failed",
+            )
+    except Exception:  # noqa: BLE001 — advance transition может быть невалидным
+        # (напр. state machine не разрешает переход); просто пропускаем.
+        pass
 
 
 # ============================================================
@@ -327,6 +679,83 @@ def list_parsed_sections(
         items=[_to_section_list_item(s) for s in paged],
         pagination=pagination,
     )
+
+
+# ============================================================
+# SETUP-04 UX: детализация секции + preview LLM-prompts
+# ============================================================
+
+
+@router.get(
+    "/{setup_job_id}/parse-jobs/{parse_job_id}/sections/{section_id}",
+    response_model=ParsedSectionDetailDTO,
+    summary="Get full section detail (raw + normalized text, classification)",
+)
+def get_section_detail(
+    setup_job_id: str = Path(..., min_length=1),
+    parse_job_id: str = Path(..., min_length=1),
+    section_id: str = Path(..., min_length=1),
+    principal: Principal = Depends(require_permission(Permission.KB_SECTION_READ)),
+    orchestrator: SetupOrchestrator = Depends(get_orchestrator),
+    parse_job_repo: InMemoryParseJobRepository = Depends(get_parse_job_repo),
+    section_repo: InMemoryParsedSectionRepository = Depends(get_parsed_section_repo),
+) -> ParsedSectionDetailDTO:
+    _load_job(
+        orchestrator=orchestrator,
+        setup_job_id=setup_job_id,
+        principal=principal,
+    )
+    job = _load_parse_job(parse_job_repo=parse_job_repo, parse_job_id=parse_job_id)
+    _ensure_parse_job_in_setup(job, setup_job_id)
+    try:
+        section = section_repo.get(section_id)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Section {section_id!r} not found: {exc}",
+        ) from exc
+    if section.parse_job_id != parse_job_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Section {section_id!r} does not belong to parse_job {parse_job_id!r}",
+        )
+    return _build_section_detail(section)
+
+
+@router.get(
+    "/{setup_job_id}/parse-jobs/{parse_job_id}/sections/{section_id}/prompts",
+    response_model=list[ClassificationPromptDTO],
+    summary="Preview LLM classification prompts for a section (all levels)",
+)
+def get_section_prompts(
+    setup_job_id: str = Path(..., min_length=1),
+    parse_job_id: str = Path(..., min_length=1),
+    section_id: str = Path(..., min_length=1),
+    principal: Principal = Depends(require_permission(Permission.KB_SECTION_READ)),
+    orchestrator: SetupOrchestrator = Depends(get_orchestrator),
+    parse_job_repo: InMemoryParseJobRepository = Depends(get_parse_job_repo),
+    section_repo: InMemoryParsedSectionRepository = Depends(get_parsed_section_repo),
+) -> list[ClassificationPromptDTO]:
+    _load_job(
+        orchestrator=orchestrator,
+        setup_job_id=setup_job_id,
+        principal=principal,
+    )
+    job = _load_parse_job(parse_job_repo=parse_job_repo, parse_job_id=parse_job_id)
+    _ensure_parse_job_in_setup(job, setup_job_id)
+    try:
+        section = section_repo.get(section_id)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Section {section_id!r} not found: {exc}",
+        ) from exc
+    if section.parse_job_id != parse_job_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Section {section_id!r} does not belong to parse_job {parse_job_id!r}",
+        )
+    return _build_prompt_previews(section)
 
 
 @router.post(

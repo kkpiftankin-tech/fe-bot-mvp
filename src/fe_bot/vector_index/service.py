@@ -32,6 +32,36 @@ from fe_bot.vector_index.client import (
 logger = logging.getLogger(__name__)
 
 
+# SETUP-12 wiring: ключи payload'а из front_matter, которые попадают
+# в VectorIndex для retrieval-фильтров. См. ADR-HTC-07.
+_TAXONOMY_PAYLOAD_KEYS = frozenset(
+    {
+        "taxonomy_version_id",
+        "taxonomy_node_id",
+        "taxonomy_path",
+        "classification_bitmap",
+        "primary_l0",
+        "primary_l1",
+        "primary_l2",
+        "unknown_at_level",
+    }
+)
+
+
+def _extract_taxonomy_payload(
+    front_matter: dict[str, object] | None,
+) -> dict[str, object]:
+    """Возвращает подмножество front_matter с таксономическими ключами.
+
+    Пустой dict если ни одного ключа не найдено (rule_based mode).
+    """
+    if not front_matter:
+        return {}
+    return {
+        k: v for k, v in front_matter.items() if k in _TAXONOMY_PAYLOAD_KEYS
+    }
+
+
 @dataclass(slots=True)
 class IndexingResult:
     """Сводка индексации для UI / processing report."""
@@ -84,11 +114,21 @@ class VectorIndexerService:
         # Step 1: chunking
         all_chunks = []
         chunk_to_doc_type: dict[str, str] = {}
+        # SETUP-12 wiring: taxonomy payload per card (taken из
+        # metadata.front_matter, который заполняется RAG-card orchestrator'ом
+        # в llm-mode). Backward-compat: пусто в rule_based mode.
+        chunk_to_taxonomy_payload: dict[str, dict[str, object]] = {}
         for card, metadata in cards_pairs:
             chunks = self._chunking.chunk_card(card=card, metadata=metadata)
+            # SETUP-12: front_matter живёт на самой RAGCard (orchestrator
+            # копирует туда taxonomy_* поля), а не на структурированной
+            # RAGMetadata. См. orchestrator step 12.
+            tax_payload = _extract_taxonomy_payload(card.front_matter)
             all_chunks.extend(chunks)
             for chunk in chunks:
                 chunk_to_doc_type[chunk.chunk_id] = card.doc_type.value
+                if tax_payload:
+                    chunk_to_taxonomy_payload[chunk.chunk_id] = tax_payload
         result.chunks_total = len(all_chunks)
 
         if not all_chunks:
@@ -126,15 +166,18 @@ class VectorIndexerService:
             chunk = chunks_by_id[chunk_id]
             doc_type = chunk_to_doc_type[chunk_id]
             collection = collection_for_doc_type(doc_type)
-            point = make_point(chunk=chunk, embedding=embedding, doc_type=doc_type)
+            point = make_point(
+                chunk=chunk,
+                embedding=embedding,
+                doc_type=doc_type,
+                extra_payload=chunk_to_taxonomy_payload.get(chunk_id),
+            )
             points_by_collection.setdefault(collection, []).append(point)
 
         collections_touched: list[str] = []
         try:
             for collection, points in points_by_collection.items():
-                upserted = self._index_client.upsert_batch(
-                    collection=collection, points=points
-                )
+                upserted = self._index_client.upsert_batch(collection=collection, points=points)
                 result.chunks_indexed += upserted
                 collections_touched.append(collection)
         except VectorIndexUnavailableError as exc:

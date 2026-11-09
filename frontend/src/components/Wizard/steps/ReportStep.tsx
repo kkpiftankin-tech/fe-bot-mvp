@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getReport } from "../../../api/setup";
 import { useWizardStore } from "../../../store/wizardStore";
+import { TaxonomyTreeView } from "../../Taxonomy/TaxonomyTreeView";
 
 export function ReportStep(): JSX.Element {
   const { setupJobId, reset } = useWizardStore();
@@ -25,7 +26,7 @@ export function ReportStep(): JSX.Element {
 
   return (
     <div>
-      <h2>Шаг 11. Итоговый отчёт</h2>
+      <h2>Шаг 10. Итоговый отчёт</h2>
       <p className="text-muted">
         Сводка по всему setup job — используется auditor'ом для проверки качества
         KB до выкатки в Runtime.
@@ -112,6 +113,10 @@ export function ReportStep(): JSX.Element {
         >
           Начать новый setup
         </button>
+      </div>
+
+      <div style={{ marginTop: 32 }}>
+        <TaxonomyTreeView />
       </div>
     </div>
   );

@@ -1,7 +1,6 @@
 # Импортируем FastAPI.
-from fastapi import FastAPI
 import uvicorn
-
+from fastapi import FastAPI
 
 # Импортируем граф агентов.
 from app.graph import agent_graph

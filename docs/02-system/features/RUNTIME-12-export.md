@@ -8,11 +8,16 @@
 
 Этот пакет — единственное, что пользователь уносит с диалога. Именно он делает всю систему ценной: запускаемая, инспектируемая стартовая точка для ML-работы.
 
+## Вход и выход
+
+- **Вход.** Подтверждённая `ContextMemory` и команда **Export project**.
+- **Выход.** `archive.zip` с девятью артефактами, `ExportManifest` и time-bound ссылка скачивания (состав архива — в [system-overview.md](../system-overview.md#runtime-выход)).
+
 ## Пользовательский сценарий
 
 1. После [RUNTIME-11](RUNTIME-11-model-selection.md) пользователь жмёт **Export project**.
 2. Export Service материализует артефакты из `ContextMemory`, запускает `ExportManifestValidator`, строит `archive.zip` и выкладывает download-ссылку в Download Manager ([PLATFORM-04](PLATFORM-04-artifact-storage.md)).
-3. Пользователь скачивает архив и может локально запустить `python data_generator.py && python pipeline.py --config config.yaml` без дополнительных вводов.
+3. Пользователь скачивает архив и может локально запустить `python data_generator.py && python pipeline.py --config training_config.yaml` без дополнительных вводов.
 
 ## Связанные требования
 

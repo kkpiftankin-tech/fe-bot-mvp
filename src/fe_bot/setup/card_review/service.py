@@ -36,7 +36,6 @@ from typing import Any
 from schemas.rag.rag_card import CardStatus, InvalidCardTransitionError, RAGCard
 from schemas.setup.rag_card_version import RAGCardVersionDTO
 from schemas.setup.review_decision import (
-    RejectReason,
     ReviewDecision,
     ReviewDecisionDTO,
 )
@@ -46,14 +45,12 @@ from fe_bot.audit.service import AuditAction, AuditService
 from fe_bot.setup.card_registry.service import (
     CardNotFoundError,
     CardRecord,
-    InMemoryRAGCardRegistry,
     RAGCardRegistry,
 )
 from fe_bot.setup.card_review.decision_repository import (
     InMemoryReviewDecisionRepository,
 )
 from fe_bot.setup.card_review.edit_lock_repository import (
-    EditLockActiveError,
     InMemoryEditLockRepository,
 )
 from fe_bot.setup.card_review.editor import (
@@ -67,7 +64,6 @@ from fe_bot.setup.card_review.events import (
     RAGCardRegenerateRequestedEvent,
     RAGCardRejectedEvent,
     RAGCardReviewCompletedEvent,
-    RAGCardReviewStartedEvent,
     RAGCardVersionCreatedEvent,
     SetupReviewReadinessChangedEvent,
     _BaseRAGCardReviewEvent,

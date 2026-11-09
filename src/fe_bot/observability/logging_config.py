@@ -32,9 +32,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 # Context variables — propagate через await chain.
-_correlation_id_ctx: ContextVar[str | None] = ContextVar(
-    "correlation_id", default=None
-)
+_correlation_id_ctx: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 # default=None для мутабельного типа; пустой dict материализуем при чтении.
 _request_context_ctx: ContextVar[dict[str, Any] | None] = ContextVar(
     "request_context", default=None

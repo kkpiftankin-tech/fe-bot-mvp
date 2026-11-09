@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
+from schemas.rag.chunk import Chunk
 
 from fe_bot.api.dependencies import (
     get_card_registry,
@@ -38,8 +39,6 @@ from fe_bot.setup.chunking.manifest_repository import (
 from fe_bot.setup.chunking.orchestrator import ChunkingOrchestrator
 from fe_bot.setup.orchestrator import SetupOrchestrator
 from fe_bot.setup.repository import JobNotFoundError
-from schemas.rag.chunk import Chunk
-
 
 router = APIRouter(prefix="/api/v1/setup", tags=["chunking"])
 

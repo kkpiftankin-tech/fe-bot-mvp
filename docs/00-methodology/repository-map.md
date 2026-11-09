@@ -17,8 +17,8 @@ repo/
 │   └── raw/
 │
 ├── docs/                      # Вся документация
-│   ├── 00-methodology/        # Как мы работаем (этот каталог)
-│   ├── 01-business/           # Vision, цели, стейкхолдеры, ограничения
+│   ├── 00-methodology/        # Как мы работаем + точка входа README.md (этот каталог)
+│   ├── 01-business/           # Vision, цели, стейкхолдеры, ограничения, бизнес-требования, MVP
 │   ├── 02-system/             # System overview, фичи, use cases, FR/NFR
 │   ├── 03-architecture/       # C4-виды + ADR
 │   ├── 04-domain/             # Доменная модель, сущности, инварианты
@@ -30,7 +30,9 @@ repo/
 │   ├── 10-testing/            # Стратегия тестирования и руководства по слоям
 │   ├── 11-operations/         # Наблюдаемость, метрики, развёртывание, runbooks
 │   ├── traceability/          # Матрицы покрытия между артефактами
-│   └── implementation-plan/   # Нумерованные списки задач
+│   ├── implementation-plan/   # Нумерованные списки задач
+│   ├── observability/         # Определения дашбордов (например, taxonomy-health.json)
+│   └── tech-debt/             # Зафиксированный технический долг (TD-*)
 │
 ├── rag/                       # Контент базы знаний RAG
 │   ├── ontology/              # Онтологические карточки
@@ -38,19 +40,35 @@ repo/
 │   ├── manifests/             # document_index.json, chunk_manifest.jsonl
 │   └── relationships/         # Связи между карточками + retrieval-политики
 │
-├── schemas/                   # Pydantic-схемы (контракты)
+├── schemas/                   # Pydantic-схемы (контракты): setup/, rag/, taxonomy/, classifier/, common/
 ├── prompts/                   # Шаблоны промптов, по одному на агента
 ├── validators/                # Детерминированные проверки (источник истины)
 │
+├── config/                    # Конфигурация (например, config/taxonomy/auto_allocation.yaml)
+├── seed/                      # Начальные данные: seed/taxonomy/ (таксономия), seed/classifier/ (дерево классификаторов)
+├── frontend/                  # UI на React + TypeScript (Vite): Setup-мастер из 11 шагов
+├── var/                       # Локальное состояние dev-окружения: снимок репозиториев и blob-хранилище (var/state/); в .gitignore
+│
 ├── src/fe_bot/                # Код приложения
-│   ├── api/                   # FastAPI app
-│   ├── graph/                 # Разводка LangGraph
-│   ├── agents/                # Реализации агентов
-│   ├── rag/                   # Retriever + evidence pack builder
-│   ├── tools/                 # Python-инструменты, которые вызывают агенты
-│   ├── data_generation/       # Worker синтетических данных
-│   ├── export/                # Сборка артефактов
-│   └── observability/         # Логи, метрики, трейсинг
+│   ├── api/                   # FastAPI app; api/setup/ — роутеры и DTO Setup-мастера
+│   ├── setup/                 # Backend Setup: upload, source_registry, parser, rag_card_generation,
+│   │                          #   card_review, metadata_validation, chunking, embedding, evaluation, publish
+│   ├── taxonomy/              # Иерархическая таксономия секций (SETUP-12; замещена SETUP-13, код сохранён)
+│   ├── classifier/            # Библиотека классификаторов (SETUP-13)
+│   ├── llm_gateway/           # Клиент LLM (Ollama)
+│   ├── vector_index/          # Работа с Qdrant
+│   ├── storage/               # Artifact Storage (MinIO)
+│   ├── persistence/           # Снапшоты состояния
+│   ├── retrieval/             # Retrieval-сервис
+│   ├── auth/                  # Роли и права (rag_admin, publish и др.)
+│   ├── audit/                 # Audit-события
+│   ├── observability/         # Логи, метрики, трейсинг
+│   ├── graph/                 # Разводка LangGraph — Runtime, пока пусто
+│   ├── agents/                # Реализации агентов — Runtime, пока пусто
+│   ├── rag/                   # Evidence pack builder — Runtime, пока пусто
+│   ├── tools/                 # Python-инструменты агентов — Runtime, пока пусто
+│   ├── data_generation/       # Worker синтетических данных — Runtime, пока пусто
+│   └── export/                # Сборка артефактов — Runtime, пока пусто
 │
 ├── tests/
 │   ├── unit/                  # Схемы, валидаторы, утилиты
@@ -74,7 +92,8 @@ repo/
 │   └── demo-langgraph-reviewer/  # Legacy demo planner/worker/reviewer
 │
 └── .claude/
-    └── skills/                # Skills в стиле slash-команд для Claude Code
+    ├── skills/                # Skills в стиле slash-команд для Claude Code
+    └── agents/                # Специализированные субагенты проекта
 ```
 
 ## Куда класть что
@@ -91,6 +110,9 @@ repo/
 | Зафиксировать архитектурное решение | `docs/03-architecture/adr/ADR-XXX-<slug>.md` |
 | Добавить Compose-сервис или профиль | `infra/compose/docker-compose.yml` |
 | Обновить agent-to-contract map | `docs/traceability/agent-to-contract-map.md` |
+| Добавить шаг или экран Setup-мастера | `frontend/src/components/Wizard/steps/` + роутер в `src/fe_bot/api/setup/` + логика в `src/fe_bot/setup/` |
+| Добавить seed-данные (таксономия, классификаторы) | `seed/taxonomy/`, `seed/classifier/` |
+| Зафиксировать технический долг | `docs/tech-debt/TD-<AREA>-<NNN>-<slug>.md` |
 
 ## Пустые каталоги
 
@@ -98,5 +120,6 @@ repo/
 
 ## Смотри также
 
+- [README.md](README.md) — что за система и как читать документацию.
 - [development-process.md](development-process.md) — порядок появления артефактов.
 - [traceability-rules.md](traceability-rules.md) — как поддерживается честность связей между артефактами.

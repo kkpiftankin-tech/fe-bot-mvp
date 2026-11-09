@@ -17,6 +17,7 @@ from schemas.setup.source_document import (
     SourceDocumentStatus,
 )
 
+from fe_bot.llm_gateway.exceptions import LLMUnavailableError
 from fe_bot.setup.events import EventBus, SetupProgressEvent
 from fe_bot.setup.parser.classifier import SectionClassifier
 from fe_bot.setup.parser.document_repository import (
@@ -68,7 +69,7 @@ class _CapturingBus(EventBus):
         super().publish(event)
 
 
-def _make_world() -> dict[str, Any]:
+def _make_world(*, classifier: Any = None) -> dict[str, Any]:
     registry = InMemorySourceRegistry()
     history = InMemoryStatusHistoryRepository()
     log = InMemoryProcessingLogRepository()
@@ -98,7 +99,7 @@ def _make_world() -> dict[str, Any]:
         section_repo=section_repo,
         report_repo=report_repo,
         parser_registry=parser_registry,
-        classifier=SectionClassifier(),
+        classifier=classifier if classifier is not None else SectionClassifier(),
         source_lifecycle=lifecycle,
         artifact_storage=storage,
         event_bus=bus,
@@ -295,7 +296,9 @@ class TestRun:
         job = world["orchestrator"].create_parse_job(setup_job_id="sj_1", requested_by="user-1")
         final = world["orchestrator"].run(job.parse_job_id)
         assert final.status == ParseJobStatus.FAILED
-        assert final.error_code == ParseErrorCode.SECTION_DETECTION_FAILED
+        # Job-level error_code пропагирует РЕАЛЬНУЮ причину сбоя документа
+        # (тут — отсутствующий raw file), а не жёстко зашитый generic-код.
+        assert final.error_code == ParseErrorCode.RAW_FILE_NOT_FOUND
 
 
 class TestEvents:
@@ -370,3 +373,92 @@ class TestLifecycleIntegration:
         world["orchestrator"].run(job.parse_job_id)
         entries = world["log"].list_for_document("src_1")
         assert any(e.level.value == "error" for e in entries)
+
+
+# ============================================================
+# Classification resilience (SETUP-13 / ADR-HTC-09 wiring): один сбойный
+# вызов LLM-классификатора не должен ронять весь документ и терять уже
+# сделанную работу; несколько сбоев ПОДРЯД — системная проблема, документ
+# останавливается, но с честным (не нулевым) отчётом о прогрессе.
+# ============================================================
+
+
+class _FlakyClassifier:
+    """apply_to_sections вызывается по одной секции за раз (по одному
+    вызову на section в цикле orchestrator'а) — кидает LLMUnavailableError
+    на заданных по счётчику вызовах, иначе классифицирует "успешно"."""
+
+    def __init__(self, fail_at_calls: set[int]) -> None:
+        self._fail_at_calls = fail_at_calls
+        self.call_count = 0
+
+    def apply_to_sections(self, sections):  # noqa: ANN001, ANN201
+        self.call_count += 1
+        if self.call_count in self._fail_at_calls:
+            raise LLMUnavailableError(f"simulated failure at call {self.call_count}")
+        [section] = sections
+        return [
+            section.model_copy(
+                update={"confidence": 0.9, "classification_method": "fake_llm"}
+            )
+        ]
+
+
+def _five_section_doc(world: dict[str, Any]) -> None:
+    _add_source(
+        world=world,
+        setup_job_id="sj_1",
+        source_document_id="src_1",
+        content=(
+            b"# A\n\nBody A\n\n# B\n\nBody B\n\n# C\n\nBody C\n\n"
+            b"# D\n\nBody D\n\n# E\n\nBody E"
+        ),
+        filename="five.md",
+        content_type="text/markdown",
+    )
+
+
+class TestClassificationResilience:
+    def test_isolated_failure_is_skipped_not_fatal(self) -> None:
+        # Один сбой (call #2 из 5) — секция помечается неклассифицированной,
+        # обработка документа продолжается до конца.
+        classifier = _FlakyClassifier(fail_at_calls={2})
+        world = _make_world(classifier=classifier)
+        _five_section_doc(world)
+        job = world["orchestrator"].create_parse_job(setup_job_id="sj_1", requested_by="user-1")
+        final = world["orchestrator"].run(job.parse_job_id)
+
+        assert final.status == ParseJobStatus.COMPLETED
+        assert final.total_sections == 5
+        sections = world["section_repo"].list_for_document("src_1")
+        assert len(sections) == 5
+        failed_sections = [
+            s for s in sections if s.classification_method == "classifier_tree_failed"
+        ]
+        assert len(failed_sections) == 1
+        assert failed_sections[0].confidence == 0.0
+        ok_sections = [s for s in sections if s.classification_method == "fake_llm"]
+        assert len(ok_sections) == 4
+
+    def test_consecutive_failures_trip_circuit_breaker(self) -> None:
+        # 3 сбоя ПОДРЯД (calls #2,#3,#4 из 5) — считается системной
+        # проблемой: документ останавливается как FAILED, но отчёт честно
+        # показывает 1 реально обработанную секцию, а не 0.
+        classifier = _FlakyClassifier(fail_at_calls={2, 3, 4})
+        world = _make_world(classifier=classifier)
+        _five_section_doc(world)
+        job = world["orchestrator"].create_parse_job(setup_job_id="sj_1", requested_by="user-1")
+        final = world["orchestrator"].run(job.parse_job_id)
+
+        assert final.status == ParseJobStatus.FAILED
+        assert final.error_code == ParseErrorCode.CLASSIFICATION_FAILED
+        # Прогресс до срабатывания circuit breaker не должен теряться из
+        # job-level счётчиков (было: total_sections всегда 0 при FAILED).
+        # 3 секции обработаны до триггера: call#1 успех + call#2,#3 —
+        # изолированные сбои (тоже сохраняются, просто неклассифицированные);
+        # call#4 — третий сбой ПОДРЯД, обрывает документ до сохранения.
+        assert final.total_sections == 3
+        report = world["report_repo"].get_for_document_in_job(job.parse_job_id, "src_1")
+        assert report is not None
+        assert report.summary.sections_count == 3
+        assert report.errors[0]["code"] == ParseErrorCode.CLASSIFICATION_FAILED.value

@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 
 import pytest
+from schemas.setup.rag_card_edit_lock import EditLockStatus
 
 from fe_bot.setup.card_review.edit_lock_repository import (
     EditLockActiveError,
@@ -12,7 +13,6 @@ from fe_bot.setup.card_review.edit_lock_repository import (
     EditLockReleaseDeniedError,
     InMemoryEditLockRepository,
 )
-from schemas.setup.rag_card_edit_lock import EditLockStatus
 
 
 def test_acquire_happy_path():

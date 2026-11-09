@@ -130,7 +130,7 @@
 - **Основное хранилище.** PostgreSQL (таблица `parsed_sections`); крупные тексты — Object Storage.
 - **Producer.** SVC-07 Document Parser Service.
 - **Consumers.** SVC-06 Source Registry, SVC-09 RAG Card Generator, SVC-08 Metadata Validation Service, SVC-35 Analytics Service, SVC-36 Audit Service.
-- **Ключевые поля.** `section_id`, `parse_job_id`, `source_document_id`, `section_index`, `parent_section_id`, `heading_path[]`, `title`, `section_type`, `section_status`, `raw_text`, `normalized_text`, `start_offset`, `end_offset`, `content_hash`, `confidence`, `classification_method`, `structural_payload`, `created_at`, `metadata`.
+- **Ключевые поля.** `section_id`, `parse_job_id`, `source_document_id`, `section_index`, `parent_section_id`, `heading_path[]`, `title`, `section_type`, `section_status`, `raw_text`, `normalized_text`, `start_offset`, `end_offset`, `content_hash`, `confidence`, `classification_method`, `structural_payload`, `created_at`, `metadata`. Результат классификации по дереву SETUP-13 хранится в поле `classifier_result` (`FragmentClassificationResult`, `schemas/classifier/classification_result.py`; в целевом дизайне — с `resolved_hints`, [SETUP-13 §8](../../02-system/features/SETUP-13-classifier-library.md#8-metadata-хинты-узлов)).
 
 ---
 

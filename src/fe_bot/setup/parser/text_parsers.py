@@ -14,7 +14,8 @@ from datetime import UTC, datetime
 
 from schemas.setup.parsed_section import ParsedSection, SectionType
 
-from fe_bot.setup.parser.exceptions import ParseFailedError, UnsupportedFormatError
+from fe_bot.setup.parser.exceptions import ParseFailedError
+from fe_bot.setup.parser.registry import ParseFailedError as _StrategyParseFailedError
 
 
 def parse_plain_text(
@@ -174,18 +175,78 @@ def parse_json(
     ]
 
 
-# ---------- Stubs (T-S01-018b) ----------
+# ---------- Binary formats (SETUP-04: delegated to new strategies) ----------
 
 
-def parse_pdf(**_kwargs: object) -> list[ParsedSection]:
-    raise UnsupportedFormatError("PDF parsing not yet implemented (T-S01-018b, requires pypdf)")
+def _run_strategy(
+    strategy_cls: type,
+    *,
+    data: bytes,
+    source_document_id: str,
+    setup_job_id: str,
+    filename: str,
+) -> list[ParsedSection]:
+    try:
+        sections: list[ParsedSection] = strategy_cls().parse(
+            data=data,
+            source_document_id=source_document_id,
+            parse_job_id=setup_job_id,
+            filename=filename,
+        )
+    except _StrategyParseFailedError as exc:
+        raise ParseFailedError(str(exc), filename=filename) from exc
+    return sections
 
 
-def parse_docx(**_kwargs: object) -> list[ParsedSection]:
-    raise UnsupportedFormatError(
-        "DOCX parsing not yet implemented (T-S01-018b, requires python-docx)"
+def parse_pdf(
+    *,
+    source_document_id: str,
+    setup_job_id: str,
+    filename: str,
+    data: bytes,
+) -> list[ParsedSection]:
+    from fe_bot.setup.parser.strategies import PDFParserStrategy
+
+    return _run_strategy(
+        PDFParserStrategy,
+        data=data,
+        source_document_id=source_document_id,
+        setup_job_id=setup_job_id,
+        filename=filename,
     )
 
 
-def parse_xlsx(**_kwargs: object) -> list[ParsedSection]:
-    raise UnsupportedFormatError("XLSX parsing not yet implemented (T-S01-018b, requires openpyxl)")
+def parse_docx(
+    *,
+    source_document_id: str,
+    setup_job_id: str,
+    filename: str,
+    data: bytes,
+) -> list[ParsedSection]:
+    from fe_bot.setup.parser.strategies import DOCXParserStrategy
+
+    return _run_strategy(
+        DOCXParserStrategy,
+        data=data,
+        source_document_id=source_document_id,
+        setup_job_id=setup_job_id,
+        filename=filename,
+    )
+
+
+def parse_xlsx(
+    *,
+    source_document_id: str,
+    setup_job_id: str,
+    filename: str,
+    data: bytes,
+) -> list[ParsedSection]:
+    from fe_bot.setup.parser.strategies import XLSXParserStrategy
+
+    return _run_strategy(
+        XLSXParserStrategy,
+        data=data,
+        source_document_id=source_document_id,
+        setup_job_id=setup_job_id,
+        filename=filename,
+    )

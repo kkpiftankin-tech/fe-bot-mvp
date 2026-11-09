@@ -70,6 +70,21 @@ RAG-карточек) и прослеживает связи AC → task → к�
 | integration | [tests/integration/test_rag_cards_endpoints.py](../../tests/integration/test_rag_cards_endpoints.py) | 9 endpoints, RBAC, cross-job isolation |
 | integration | [tests/integration/test_rag_card_audit_metrics.py](../../tests/integration/test_rag_card_audit_metrics.py) | 5 audit actions, counters, histograms, structured logs |
 
+## Планируемое: единая классификация ([ADR-HTC-10](../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md))
+
+Реализованные слайсы S0–S7 выше соответствуют прежнему дизайну (`DocTypeDetector` по `section_type`, онтологические поля от LLM). Целевой дизайн добавляет AC-52..60 и меняет AC-10, AC-17; ни реализации, ни тестов под них пока нет. Расхождение зафиксировано в [TD-HTC-004](../tech-debt/TD-HTC-004-duplicate-classification-in-card-generation.md).
+
+| AC | Что проверяется | Целевой тест (планируется) | Статус |
+| --- | --- | --- | --- |
+| AC-10, AC-17 | `doc_type` из `doc_type_hint`; хинт вне поддерживаемых типов → `INVALID_DOC_TYPE` | `tests/unit/test_classification_metadata_resolver.py` | planned (сейчас покрыто `test_doc_type_detector.py` для прежней логики) |
+| AC-52, AC-59 | Поля карточки равны `resolved_hints`; детерминизм | `tests/unit/test_classification_metadata_resolver.py` | planned |
+| AC-53 | Промпт не просит `doc_type` и онтологические поля; ответ LLM их не меняет | `tests/prompt_eval/` + `tests/unit/test_llm_card_adapter.py` | planned |
+| AC-54, AC-55 | Нет `doc_type_hint` / `classifier_result` → `DOC_TYPE_HINT_MISSING`, LLM не вызывается | `tests/component/test_rag_card_generation_orchestrator.py` | planned |
+| AC-56 | Нет `domain_hint` / `phase_hint` → `metadata_incomplete` | `tests/component/test_rag_card_generation_orchestrator.py` | planned |
+| AC-57 | Правка хинта + повтор генерации без перепарсинга | `tests/integration/` (SETUP-13 + SETUP-05) | planned |
+| AC-58 | `classifier_path`, `classifier_tree_version` в front matter | `tests/unit/test_rag_card_metadata_schemas.py` | planned |
+| AC-60 | Доля `DOC_TYPE_HINT_MISSING` в отчёте job | `tests/unit/test_rag_card_generation_report.py` | planned |
+
 ## Permissions
 
 | Permission | Role(s) | Endpoint(s) |

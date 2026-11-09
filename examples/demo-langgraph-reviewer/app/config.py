@@ -1,6 +1,7 @@
 # Импортируем BaseModel из pydantic, чтобы описать типизированные настройки приложения.
 from pydantic import BaseModel
 
+
 # Создаём класс Settings, в котором будут храниться настройки приложения.
 class Settings(BaseModel):
     # Имя модели Ollama, которую будем вызывать локально.

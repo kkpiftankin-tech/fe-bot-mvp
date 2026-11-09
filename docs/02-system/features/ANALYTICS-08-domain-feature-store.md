@@ -8,6 +8,11 @@
 
 Многие реальные задачи переиспользуют те же доменные агрегаты, что движут предложениями признаков в Runtime. Делая их first-class видами, мы укорачиваем путь от вопроса «как сегодня выглядит датчик X?» до одного экрана.
 
+## Вход и выход
+
+- **Вход.** Агрегаты feature-store (`sensor_analytics_T`, `weapon_esm_analytics_T`, `comms_esm_analytics_T`, `object_analytics_T`, `environment_analytics_T`, `global_situation_analytics_T`) из внешних источников.
+- **Выход.** Доменный дашборд поверх этих агрегатов.
+
 ## Пользовательский сценарий
 
 Оператор открывает дашборд, выбирает датчик и видит `uptime_ratio_T`, `detection_probability_T`, `false_alarm_rate_T`, `avg_position_error`, `track_drop_rate`, `revisit_time_mean`, `jammed_time_ratio` за выбранное окно. Для объекта: `operational_availability_T`, `route_deviation_index`, `signature_exposure_index`, `distance_to_threats_p05`.

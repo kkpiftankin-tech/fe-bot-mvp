@@ -185,9 +185,9 @@ export function RAGCardGenerationStep(): JSX.Element {
         </button>
         <button
           className="btn btn-secondary"
-          onClick={() => setStep("run")}
+          onClick={() => setStep("review")}
           disabled={!isTerminal || status === "failed"}
-          data-testid="continue-to-run"
+          data-testid="continue-to-review-from-generation"
         >
           Далее →
         </button>

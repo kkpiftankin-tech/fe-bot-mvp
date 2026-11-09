@@ -17,7 +17,6 @@ from typing import Literal
 from schemas.rag.rag_card import CardStatus, RAGCard
 from schemas.setup.rag_card_version import RAGCardVersionDTO, bump_version
 
-
 BumpType = Literal["minor", "major"]
 
 

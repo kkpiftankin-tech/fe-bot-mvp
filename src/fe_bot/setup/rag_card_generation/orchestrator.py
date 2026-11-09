@@ -26,7 +26,13 @@ import logging
 import uuid
 from collections import Counter
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    # SETUP-12: только для type-checking, чтобы не создавать runtime-зависимость
+    # rag_card_generation → taxonomy (см. TaxonomyDocTypeDetector, который
+    # зависит от rag_card_generation.doc_type_detector в обратную сторону).
+    from fe_bot.taxonomy.registry import TaxonomyRegistry
 
 from schemas.rag.ontology import DocType
 from schemas.rag.rag_card import CardStatus, RAGCard
@@ -217,6 +223,11 @@ class RAGCardGenerationOrchestrator:
         audit_service: AuditService | None = None,
         metrics: MetricsRegistry | None = None,
         confidence_threshold: float = _DEFAULT_CONFIDENCE_THRESHOLD,
+        taxonomy_registry: TaxonomyRegistry | None = None,
+        # SETUP-05 crash-safety: коллбек, который вызывается после каждой
+        # обработанной секции. В prod-DI wired на persister.save() — snapshot
+        # на disk, чтобы аварийная остановка не потеряла часы LLM-работы.
+        on_section_progress: object | None = None,
     ) -> None:
         self._jobs = job_repo
         self._sections = job_section_repo
@@ -238,6 +249,23 @@ class RAGCardGenerationOrchestrator:
         self._audit = audit_service
         self._metrics = metrics
         self._threshold = confidence_threshold
+        # SETUP-12 wiring: при llm-mode инжектируем TaxonomyRegistry,
+        # чтобы добавлять taxonomy_path / primary_l0 в card front_matter.
+        # None означает rule_based mode — front_matter без taxonomy полей.
+        self._taxonomy_registry = taxonomy_registry
+        self._on_section_progress = on_section_progress
+
+    def _emit_progress(self) -> None:
+        """Best-effort persist snapshot. Не бросает при сбое."""
+        cb = self._on_section_progress
+        if cb is None:
+            return
+        try:
+            cb()  # type: ignore[misc]
+        except Exception:  # noqa: BLE001
+            logger.debug(
+                "on_section_progress callback failed", exc_info=True
+            )
 
     # ============================================================
     # Public API
@@ -354,7 +382,30 @@ class RAGCardGenerationOrchestrator:
         warnings: list[dict[str, Any]] = []
         affected_documents: set[str] = set()
 
+        # SETUP-05 crash-safety + resume: пропускаем секции, которые уже
+        # обработаны в предыдущем прогоне (COMPLETED или FAILED). Учитываем
+        # их в counters, чтобы job.processed_sections отражал реальность.
         for js in self._sections.list_for_job(generation_job_id):
+            # Resume-skip
+            if js.status == RAGCardGenerationJobSectionStatus.COMPLETED:
+                generated += 1
+                if js.target_doc_type:
+                    cards_by_type[js.target_doc_type] += 1
+                affected_documents.add(js.source_document_id)
+                continue
+            if js.status == RAGCardGenerationJobSectionStatus.FAILED:
+                failed += 1
+                if js.error_code is not None:
+                    errors.append(
+                        {
+                            "section_id": js.section_id,
+                            "code": js.error_code.value,
+                            "message": js.error_message or "",
+                        }
+                    )
+                affected_documents.add(js.source_document_id)
+                continue
+
             outcome = self._process_section(job=job, job_section=js)
             affected_documents.add(js.source_document_id)
             if outcome.status == RAGCardGenerationJobSectionStatus.COMPLETED:
@@ -365,7 +416,6 @@ class RAGCardGenerationOrchestrator:
                     review_required += 1
             elif outcome.status == RAGCardGenerationJobSectionStatus.FAILED:
                 failed += 1
-                # detalize from job_section after update
                 latest = self._sections.get(js.generation_job_section_id)
                 if latest.error_code is not None:
                     errors.append(
@@ -375,6 +425,23 @@ class RAGCardGenerationOrchestrator:
                             "message": latest.error_message or "",
                         }
                     )
+
+            # SETUP-05 UX: incremental progress + crash-safety.
+            try:
+                job_live = self._jobs.get(generation_job_id)
+                job_live.processed_sections = generated + failed
+                job_live.generated_cards = generated
+                job_live.failed_sections = failed
+                job_live.review_required_cards = review_required
+                job_live.updated_at = _now()
+                self._jobs.update(job_live)
+            except Exception:  # noqa: BLE001
+                logger.debug(
+                    "Failed to update card gen job live counters",
+                    exc_info=True,
+                )
+            # Persist snapshot: аварийная остановка не потеряет прогресс.
+            self._emit_progress()
 
         finished_at = _now()
         duration_ms = max(int((finished_at - started_at).total_seconds() * 1000), 0)
@@ -574,6 +641,27 @@ class RAGCardGenerationOrchestrator:
             )
         }
 
+        # SETUP-12 / T-S12-051 wiring: при llm-mode дополняем section-контекст
+        # taxonomy_path/primary_l0/primary_l1, чтобы LLM видел иерархическую
+        # классификацию, и достаём taxonomy_path для hierarchical prompt lookup.
+        # При rule_based mode taxonomy_registry=None — блок no-op.
+        section_taxonomy: dict[str, Any] = {}
+        if (
+            self._taxonomy_registry is not None
+            and section.classification_state is not None
+        ):
+            try:
+                from fe_bot.taxonomy import build_taxonomy_section_dict
+
+                section_taxonomy = build_taxonomy_section_dict(
+                    section, registry=self._taxonomy_registry
+                )
+            except Exception:  # noqa: BLE001 — augmentation must stay safe.
+                logger.exception(
+                    "Failed to augment prompt context with taxonomy fields"
+                )
+        taxonomy_path = section_taxonomy.get("taxonomy_path")
+
         # 4. Build prompt context.
         ctx = PromptContext(
             section={
@@ -581,6 +669,7 @@ class RAGCardGenerationOrchestrator:
                 "section_type": section.section_type.value,
                 "heading_path": section.heading_path,
                 "normalized_text": section.normalized_text or section.raw_text,
+                **section_taxonomy,
             },
             source_trace={
                 "filename": f"src:{section.source_document_id}",
@@ -607,7 +696,7 @@ class RAGCardGenerationOrchestrator:
 
         # 5. Render prompt + call LLM (or fallback).
         try:
-            prompt = self._prompts.render(doc_type, ctx)
+            prompt = self._prompts.render(doc_type, ctx, taxonomy_path=taxonomy_path)
         except PromptTemplateNotFoundError as exc:
             self._fail_section(
                 job=job,
@@ -687,14 +776,53 @@ class RAGCardGenerationOrchestrator:
             card_version="1.0",
         )
 
+        # 7a. UX: кладём структурную позицию исходной секции в документе
+        # (heading_path/title от парсера) прямо в front_matter — без этого
+        # в Review/RAGCardList UI нет способа проверить, что карточка
+        # действительно соответствует своему месту в структуре документа
+        # (видно только opaque source_section_id).
+        structural_fm = dict(metadata.front_matter)
+        structural_fm["source_heading_path"] = list(section.heading_path)
+        structural_fm["source_section_title"] = section.title
+        metadata = metadata.model_copy(update={"front_matter": structural_fm})
+
+        # 7b. SETUP-12 wiring: дополняем front_matter иерархическими
+        # taxonomy полями (taxonomy_path / primary_l0 / classification_bitmap).
+        # При rule_based mode taxonomy_registry=None — этот блок no-op.
+        if (
+            self._taxonomy_registry is not None
+            and section.classification_state is not None
+        ):
+            try:
+                from fe_bot.taxonomy import build_taxonomy_front_matter
+
+                additions = build_taxonomy_front_matter(
+                    section, registry=self._taxonomy_registry
+                )
+                if additions:
+                    updated_fm = dict(metadata.front_matter)
+                    updated_fm.update(additions)
+                    metadata = metadata.model_copy(
+                        update={"front_matter": updated_fm}
+                    )
+            except Exception:  # noqa: BLE001 — taxonomy augmentation
+                # должен быть safe; ошибка не должна валить генерацию.
+                logger.exception(
+                    "Failed to augment metadata with taxonomy fields"
+                )
+
         # 8. Precheck.
         precheck_report = self._precheck.check(draft, card_version="1.0")
 
         # 9. Confidence.
+        # SETUP-12 / T-S12-053: parser classification penalty.
+        # При llm-mode parser-orchestrator кладёт ClassificationState
+        # в секцию; calculator применит penalty за unknown_at_level.
         decision_conf: ConfidenceDecision = self._confidence.calculate(
             precheck=precheck_report,
             llm_result=llm_result,
             ontology_warnings=ontology_warnings,
+            parser_classification_state=section.classification_state,
         )
         review_required = self._confidence.is_review_required(
             decision_conf,

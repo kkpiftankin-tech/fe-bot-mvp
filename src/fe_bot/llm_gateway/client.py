@@ -20,7 +20,7 @@ from typing import TypeVar
 
 import httpx
 from pydantic import BaseModel, ValidationError
-from schemas.common.defaults import DEFAULT_EMBEDDING_MODEL
+from schemas.common.defaults import DEFAULT_EMBEDDING_MODEL, DEFAULT_LLM_MODEL
 
 from fe_bot.llm_gateway.exceptions import (
     InvalidLLMOutputError,
@@ -55,7 +55,7 @@ class StructuredCallResult[T: BaseModel]:
 class LLMGateway:
     """Клиент к Ollama HTTP API."""
 
-    DEFAULT_MODEL = "llama3.2"
+    DEFAULT_MODEL = DEFAULT_LLM_MODEL
     DEFAULT_TIMEOUT_SECONDS = 60.0
     DEFAULT_MAX_RETRIES = 2  # SETUP-01 §16.3: max 2 retries для card generation
 

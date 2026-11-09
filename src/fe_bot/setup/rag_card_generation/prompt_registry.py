@@ -27,6 +27,10 @@ from typing import Any
 
 _DEFAULT_PROMPTS_DIR = Path(__file__).resolve().parents[4] / "prompts" / "rag_card"
 
+# SETUP-12 / T-S12-051: опциональные taxonomy-specific шаблоны, переопределяющие
+# дефолтный doc_type-шаблон для конкретного узла дерева таксономии.
+_BY_TAXONOMY_SUBDIR = "by_taxonomy"
+
 # Только 7 MVP doc_types.
 _SUPPORTED_DOC_TYPES = frozenset(
     {
@@ -122,6 +126,9 @@ class PromptTemplateRegistry:
     def __init__(self, *, prompts_dir: Path | None = None) -> None:
         self._prompts_dir = prompts_dir or _DEFAULT_PROMPTS_DIR
         self._templates: dict[str, PromptTemplate] = {}
+        # SETUP-12 / T-S12-051: lazy per-node cache, taxonomy_path открытое
+        # множество (auto-allocated классы), поэтому не грузим eagerly.
+        self._taxonomy_templates: dict[str, PromptTemplate | None] = {}
         self._load_all()
 
     def _load_all(self) -> None:
@@ -191,6 +198,7 @@ class PromptTemplateRegistry:
         context: PromptContext,
         *,
         strict: bool = False,
+        taxonomy_path: list[str] | None = None,
     ) -> str:
         """Рендерит prompt из template + context.
 
@@ -199,12 +207,25 @@ class PromptTemplateRegistry:
         ``{field_name}``-плейсхолдерами, которые должны попасть в инструкцию LLM
         без подмены. ``strict=True`` включает старую семантику с raise.
 
+        ``taxonomy_path`` (SETUP-12 / T-S12-051): если задан, сначала ищем
+        taxonomy-specific шаблон в ``<prompts_dir>/by_taxonomy/<path>.txt``,
+        поднимаясь вверх по дереву (от самого глубокого узла к L0). Если
+        ни на одном уровне специфичного шаблона нет — fallback на обычный
+        lookup по ``doc_type`` (текущее поведение, без регрессии).
+
         Raises:
-            PromptTemplateNotFoundError: doc_type не зарегистрирован.
+            PromptTemplateNotFoundError: doc_type не зарегистрирован и
+                ни один узел taxonomy_path не дал шаблона.
             PromptRenderError: только при ``strict=True``, если есть незаполненные
                 требуемые placeholders.
         """
-        template = self.get_template(doc_type)
+        template = (
+            self._resolve_taxonomy_template(taxonomy_path)
+            if taxonomy_path
+            else None
+        )
+        if template is None:
+            template = self.get_template(doc_type)
         flat: dict[str, str] = {}
         _flatten_context("", context.to_dict(), flat)
         # Алиас doc_type для удобства.
@@ -220,3 +241,22 @@ class PromptTemplateRegistry:
         if strict and missing:
             raise PromptRenderError(doc_type, sorted(set(missing)))
         return out
+
+    def _resolve_taxonomy_template(
+        self, taxonomy_path: list[str]
+    ) -> PromptTemplate | None:
+        """Fallback вверх по дереву: ``a.b.c`` → ``a.b`` → ``a`` → None."""
+        for depth in range(len(taxonomy_path), 0, -1):
+            key = ".".join(taxonomy_path[:depth])
+            if key not in self._taxonomy_templates:
+                self._taxonomy_templates[key] = self._load_taxonomy_template(key)
+            template = self._taxonomy_templates[key]
+            if template is not None:
+                return template
+        return None
+
+    def _load_taxonomy_template(self, key: str) -> PromptTemplate | None:
+        path = self._prompts_dir / _BY_TAXONOMY_SUBDIR / f"{key}.txt"
+        if not path.exists():
+            return None
+        return self._parse_template(key, path)

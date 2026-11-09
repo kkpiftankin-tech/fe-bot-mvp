@@ -16,14 +16,16 @@ from fe_bot import __version__
 from fe_bot.api.admin.router import router as admin_router
 from fe_bot.api.dependencies import get_metrics
 from fe_bot.api.observability.router import router as observability_router
+from fe_bot.api.setup.chunking_router import router as chunking_router
+from fe_bot.api.setup.classifier_router import router as classifier_router
 from fe_bot.api.setup.parse_router import router as parse_router
 from fe_bot.api.setup.rag_cards_router import router as rag_cards_router
-from fe_bot.api.setup.chunking_router import router as chunking_router
 from fe_bot.api.setup.review_router import router as review_router
 from fe_bot.api.setup.router import router as setup_router
-from fe_bot.api.setup.validation_router import router as validation_router
 from fe_bot.api.setup.sources_router import router as sources_router
 from fe_bot.api.setup.sse import router as setup_sse_router
+from fe_bot.api.setup.taxonomy_router import router as taxonomy_router
+from fe_bot.api.setup.validation_router import router as validation_router
 from fe_bot.observability.middleware import RequestContextMiddleware
 from fe_bot.persistence import SnapshotPersister, register_default_state
 
@@ -50,9 +52,15 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         except Exception:  # noqa: BLE001
             logger.exception("Snapshot load failed; continuing with empty state")
     app.state.snapshot_persister = persister
+    # SETUP-04 crash-safety: wire persister в parser orchestrator, чтобы
+    # он вызывал save() после каждой классифицированной секции.
+    from fe_bot.api.dependencies import set_snapshot_persister
+
+    set_snapshot_persister(persister)
     try:
         yield
     finally:
+        set_snapshot_persister(None)
         if persister is not None:
             try:
                 persister.save()
@@ -75,6 +83,8 @@ def create_app() -> FastAPI:
     app.include_router(validation_router)
     app.include_router(chunking_router)
     app.include_router(setup_sse_router)
+    app.include_router(taxonomy_router)
+    app.include_router(classifier_router)
     app.include_router(observability_router)
     app.include_router(admin_router)
 

@@ -37,7 +37,5 @@ class Embedding(BaseModel):
     def _vector_dimension_matches(self) -> Embedding:
         actual = len(self.embedding_vector)
         if actual != self.dimension:
-            raise ValueError(
-                f"embedding_vector length {actual} != dimension {self.dimension}"
-            )
+            raise ValueError(f"embedding_vector length {actual} != dimension {self.dimension}")
         return self

@@ -20,7 +20,17 @@ from dataclasses import dataclass, field
 
 # Дефолтные бакеты для гистограмм latency (секунды).
 DEFAULT_BUCKETS: tuple[float, ...] = (
-    0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
 )
 
 # Тип label key/values.
@@ -57,9 +67,7 @@ class _HistogramState:
     counts: dict[Labels, int] = field(default_factory=dict)
 
     def observe(self, labels: Labels, value: float) -> None:
-        counts = self.bucket_counts.setdefault(
-            labels, [0] * (len(self.buckets) + 1)
-        )
+        counts = self.bucket_counts.setdefault(labels, [0] * (len(self.buckets) + 1))
         for i, upper in enumerate(self.buckets):
             if value <= upper:
                 counts[i] += 1
@@ -167,56 +175,42 @@ class MetricsRegistry:
                     for i, upper in enumerate(hstate.buckets):
                         cumulative += counts[i]
                         bucket_labels = labels + (("le", str(upper)),)
-                        lines.append(
-                            f"{name}_bucket{_format_labels(bucket_labels)} {cumulative}"
-                        )
+                        lines.append(f"{name}_bucket{_format_labels(bucket_labels)} {cumulative}")
                     inf_labels = labels + (("le", "+Inf"),)
                     cumulative += counts[-1]
+                    lines.append(f"{name}_bucket{_format_labels(inf_labels)} {cumulative}")
                     lines.append(
-                        f"{name}_bucket{_format_labels(inf_labels)} {cumulative}"
+                        f"{name}_sum{_format_labels(labels)} {hstate.sums.get(labels, 0.0)}"
                     )
                     lines.append(
-                        f"{name}_sum{_format_labels(labels)} "
-                        f"{hstate.sums.get(labels, 0.0)}"
-                    )
-                    lines.append(
-                        f"{name}_count{_format_labels(labels)} "
-                        f"{hstate.counts.get(labels, 0)}"
+                        f"{name}_count{_format_labels(labels)} {hstate.counts.get(labels, 0)}"
                     )
         return "\n".join(lines) + ("\n" if lines else "")
 
     # ----- Helpers (для тестов) -----
 
-    def counter_value(
-        self, name: str, *, labels: dict[str, str] | None = None
-    ) -> float:
+    def counter_value(self, name: str, *, labels: dict[str, str] | None = None) -> float:
         with self._lock:
             state = self._counters.get(name)
             if state is None:
                 return 0.0
             return state[1].values.get(_normalize_labels(labels), 0.0)
 
-    def histogram_count(
-        self, name: str, *, labels: dict[str, str] | None = None
-    ) -> int:
+    def histogram_count(self, name: str, *, labels: dict[str, str] | None = None) -> int:
         with self._lock:
             entry = self._histograms.get(name)
             if entry is None:
                 return 0
             return entry[1].counts.get(_normalize_labels(labels), 0)
 
-    def histogram_sum(
-        self, name: str, *, labels: dict[str, str] | None = None
-    ) -> float:
+    def histogram_sum(self, name: str, *, labels: dict[str, str] | None = None) -> float:
         with self._lock:
             entry = self._histograms.get(name)
             if entry is None:
                 return 0.0
             return entry[1].sums.get(_normalize_labels(labels), 0.0)
 
-    def gauge_value(
-        self, name: str, *, labels: dict[str, str] | None = None
-    ) -> float | None:
+    def gauge_value(self, name: str, *, labels: dict[str, str] | None = None) -> float | None:
         with self._lock:
             entry = self._gauges.get(name)
             if entry is None:

@@ -47,6 +47,8 @@ from fe_bot.api.dependencies import (
     get_kb_repository,
     get_metrics,
     get_orchestrator,
+    get_parse_job_repo,
+    get_parsed_section_repo,
     get_pipeline,
     get_source_registry,
     get_upload_service,
@@ -69,6 +71,8 @@ from fe_bot.api.setup.dto import (
     ReviewRAGCardResponse,
     RunPipelineResponse,
     RunRetrievalTestsRequest,
+    SetupJobListItem,
+    SetupJobListResponse,
     SetupJobResponse,
     SetupProgressResponse,
     SourceDocumentResponse,
@@ -96,6 +100,8 @@ from fe_bot.setup.evaluation.service import (
     RAGEvaluationService,
 )
 from fe_bot.setup.orchestrator import SetupOrchestrator
+from fe_bot.setup.parser.job_repository import InMemoryParseJobRepository
+from fe_bot.setup.parser.section_repository import InMemoryParsedSectionRepository
 from fe_bot.setup.pipeline import PipelineError, SetupPipeline
 from fe_bot.setup.publish.service import (
     InMemoryKBRepository,
@@ -128,14 +134,99 @@ from fe_bot.vector_index.service import VectorIndexerService
 router = APIRouter(prefix="/api/v1/setup", tags=["setup"])
 
 
-def _to_response(job: RAGSetupJob, message: str | None = None) -> SetupJobResponse:
+# SETUP-01 UX: fallback-таблица прогресса per статус.
+# Многие транзиции статуса (upload → files_uploaded) идут через
+# job.transition_to() напрямую, минуя orchestrator.advance(), поэтому
+# progress_percent остаётся 0. Здесь derive'им из статуса, отдавая
+# приоритет уже-записанному значению если оно > 0.
+_STATUS_PROGRESS_FALLBACK: dict[str, float] = {
+    "draft": 0.0,
+    "files_uploaded": 5.0,
+    "parsing": 15.0,
+    "sections_extracted": 25.0,
+    "rag_cards_generating": 40.0,
+    "metadata_validating": 50.0,
+    "review_required": 55.0,
+    "chunking": 65.0,
+    "embedding": 78.0,
+    "indexing": 88.0,
+    "retrieval_testing": 94.0,
+    "publishing": 98.0,
+    "ready": 100.0,
+    "failed": 0.0,
+    "cancelled": 0.0,
+}
+
+
+def _derive_progress(
+    job: RAGSetupJob,
+    *,
+    parse_job_completed: bool = False,
+) -> float:
+    """Derive progress percentage.
+
+    Приоритет: 1) job.progress_percent если > 0. 2) fallback по статусу.
+    3) UX-boost: если parse_job уже `completed`, но setup_job застрял
+    в files_uploaded (auto-sync не сработал — например, при parse
+    завершённом до появления sync-логики), показываем 25% (как
+    sections_extracted). Это устраняет ложное «5%» при реально
+    распарсенных 870 секциях.
+    """
+    if job.progress_percent > 0.0:
+        return job.progress_percent
+    fallback = _STATUS_PROGRESS_FALLBACK.get(job.status.value, 0.0)
+    if (
+        parse_job_completed
+        and job.status.value == "files_uploaded"
+        and fallback < 25.0
+    ):
+        return 25.0
+    return fallback
+
+
+def _latest_parse_job_completed(
+    parse_job_repo: InMemoryParseJobRepository, setup_job_id: str
+) -> bool:
+    """Тот же "последний parse_job по started_at" выбор, что в
+    list_setup_jobs — вынесено, чтобы get_setup_job не расходился с list
+    в progress_percent для одного и того же job'а (было: list показывал
+    25%, единичный GET — 5%, для РОВНО того же setup_job). Repo приходит
+    через DI (не raw-импорт module singleton) — иначе тесты, которые
+    переопределяют get_parse_job_repo через app.dependency_overrides, не
+    увидят в нём ничего (и тихо получат fallback 5%, маскируя баг)."""
+    from datetime import UTC
+    from datetime import datetime as _dt
+
+    _epoch = _dt(1970, 1, 1, tzinfo=UTC)
+    try:
+        pjs = parse_job_repo.list_for_setup_job(setup_job_id)
+    except Exception:  # noqa: BLE001 — best-effort enrichment
+        return False
+    if not pjs:
+        return False
+    # Тот же критерий "самый свежий" (по started_at), что в list_setup_jobs.
+    latest = max(pjs, key=lambda pj: pj.started_at or _epoch)
+    return latest.status.value == "completed"
+
+
+def _to_response(
+    job: RAGSetupJob,
+    *,
+    parse_job_repo: InMemoryParseJobRepository,
+    message: str | None = None,
+) -> SetupJobResponse:
     return SetupJobResponse(
         setup_job_id=job.setup_job_id,
         user_id=job.user_id,
         project_name=job.project_name,
         status=job.status,
         current_step=job.current_step,
-        progress_percent=job.progress_percent,
+        progress_percent=_derive_progress(
+            job,
+            parse_job_completed=_latest_parse_job_completed(
+                parse_job_repo, job.setup_job_id
+            ),
+        ),
         source_documents_count=len(job.source_document_ids),
         error_count=job.error_count,
         warning_count=job.warning_count,
@@ -149,6 +240,93 @@ def _to_response(job: RAGSetupJob, message: str | None = None) -> SetupJobRespon
 # ---------- Реализованные endpoints (S1) ----------
 
 
+@router.get(
+    "/jobs",
+    response_model=SetupJobListResponse,
+    summary="List setup jobs for current user (SETUP-01 UX: restore panel)",
+)
+def list_setup_jobs(
+    principal: Principal = Depends(require_permission(Permission.KB_SETUP_CREATE)),
+    orchestrator: SetupOrchestrator = Depends(get_orchestrator),
+    parse_job_repo: InMemoryParseJobRepository = Depends(get_parse_job_repo),
+    parsed_section_repo: InMemoryParsedSectionRepository = Depends(
+        get_parsed_section_repo
+    ),
+) -> SetupJobListResponse:
+    """Возвращает все setup_jobs, принадлежащие пользователю, обогащённые
+    информацией о parse_job (для UI resume-панели)."""
+    from datetime import UTC
+    from datetime import datetime as _dt
+
+    _epoch = _dt(1970, 1, 1, tzinfo=UTC)
+
+    jobs = orchestrator.list_jobs_by_user(principal.user_id)
+
+    # Build parse_job map: setup_job_id → most-recent parse_job.
+    # Также считаем sections per parse_job.
+    parse_jobs_by_setup: dict[str, object] = {}
+    sections_by_pj: dict[str, int] = {}
+    for j in jobs:
+        try:
+            pjs = parse_job_repo.list_for_setup_job(j.setup_job_id)
+        except Exception:
+            pjs = []
+        # Пик самого свежего parse_job
+        latest = None
+        for pj in pjs:
+            if latest is None or (pj.started_at or _epoch) > (
+                latest.started_at or _epoch
+            ):
+                latest = pj
+        if latest is not None:
+            parse_jobs_by_setup[j.setup_job_id] = latest
+            with contextlib.suppress(Exception):
+                sections_by_pj[latest.parse_job_id] = len(
+                    parsed_section_repo.list_for_job(latest.parse_job_id)
+                )
+
+    def _key(j):
+        return j.finished_at or j.started_at or _epoch
+
+    jobs_sorted = sorted(jobs, key=_key, reverse=True)
+    items: list[SetupJobListItem] = []
+    for j in jobs_sorted:
+        pj = parse_jobs_by_setup.get(j.setup_job_id)
+        pj_id = getattr(pj, "parse_job_id", None) if pj else None
+        pj_status = getattr(pj, "status", None) if pj else None
+        pj_status_str = pj_status.value if pj_status is not None else None
+        sec_count = sections_by_pj.get(pj_id, 0) if pj_id else 0
+        # active_parse_job_id = только для non-terminal parse_jobs
+        active_pj = (
+            pj_id
+            if pj_status_str in {"running", "created", "queued"}
+            else None
+        )
+        items.append(
+            SetupJobListItem(
+                setup_job_id=j.setup_job_id,
+                user_id=j.user_id,
+                project_name=j.project_name,
+                status=j.status,
+                current_step=j.current_step,
+                progress_percent=_derive_progress(
+                    j, parse_job_completed=(pj_status_str == "completed")
+                ),
+                source_documents_count=len(j.source_document_ids),
+                error_count=j.error_count,
+                warning_count=j.warning_count,
+                started_at=j.started_at,
+                finished_at=j.finished_at,
+                knowledge_base_version=j.knowledge_base_version,
+                active_parse_job_id=active_pj,
+                latest_parse_job_id=pj_id,
+                parsed_sections_count=sec_count,
+                parse_job_status=pj_status_str,
+            )
+        )
+    return SetupJobListResponse(items=items, total=len(items))
+
+
 @router.post(
     "/jobs",
     response_model=SetupJobResponse,
@@ -159,12 +337,13 @@ def create_setup_job(
     payload: CreateSetupJobRequest,
     principal: Principal = Depends(require_permission(Permission.KB_SETUP_CREATE)),
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
+    parse_job_repo: InMemoryParseJobRepository = Depends(get_parse_job_repo),
 ) -> SetupJobResponse:
     job = orchestrator.create_job(
         user_id=principal.user_id,
         project_name=payload.project_name,
     )
-    return _to_response(job, message="Setup job created")
+    return _to_response(job, parse_job_repo=parse_job_repo, message="Setup job created")
 
 
 @router.get(
@@ -176,6 +355,7 @@ def get_setup_job(
     setup_job_id: str = Path(..., min_length=1),
     principal: Principal = Depends(require_permission(Permission.KB_SETUP_CREATE)),
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
+    parse_job_repo: InMemoryParseJobRepository = Depends(get_parse_job_repo),
 ) -> SetupJobResponse:
     try:
         job = orchestrator.get_job(setup_job_id)
@@ -188,7 +368,7 @@ def get_setup_job(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot access job owned by another user",
         )
-    return _to_response(job)
+    return _to_response(job, parse_job_repo=parse_job_repo)
 
 
 @router.get(
@@ -229,6 +409,7 @@ def cancel_setup_job(
     setup_job_id: str = Path(..., min_length=1),
     principal: Principal = Depends(require_permission(Permission.KB_SETUP_CREATE)),
     orchestrator: SetupOrchestrator = Depends(get_orchestrator),
+    parse_job_repo: InMemoryParseJobRepository = Depends(get_parse_job_repo),
 ) -> SetupJobResponse:
     try:
         job = orchestrator.get_job(setup_job_id)
@@ -243,7 +424,9 @@ def cancel_setup_job(
         cancelled = orchestrator.cancel_job(setup_job_id)
     except InvalidTransitionError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    return _to_response(cancelled, message="Setup job cancelled")
+    return _to_response(
+        cancelled, parse_job_repo=parse_job_repo, message="Setup job cancelled"
+    )
 
 
 # ---------- Скелетные endpoints (S2..S6) ----------
@@ -635,7 +818,14 @@ def delete_document(
 @router.post(
     "/{setup_job_id}/run",
     response_model=RunPipelineResponse,
-    summary="Run setup pipeline (T-S01-022)",
+    summary="[LEGACY] Run monolithic setup pipeline (T-S01-022)",
+    description=(
+        "Внутренний legacy-эндпоинт, больше не вызывается из wizard UI. "
+        "Использует собственный parser + card_generator, независимый от "
+        "гранулярных /parse-jobs и /rag-cards/generate. Вызов поверх "
+        "setup_job, уже прошедшего через гранулярный флоу, создаст второй "
+        "набор карточек для тех же секций в общем card_registry."
+    ),
 )
 def run_pipeline(
     setup_job_id: str = Path(..., min_length=1),

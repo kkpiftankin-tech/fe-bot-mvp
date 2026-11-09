@@ -76,6 +76,7 @@ Initiator: RAG Architect. Stakeholders: пользователь-настрой�
 ### 4.3. Ограничения
 
 - Chunking детерминирован — без LLM-вызовов.
+- Chunking не классифицирует: metadata чанка (`doc_type`, онтологические поля, `phase`, `retrieval_purpose`) наследуется от карточки, а metadata карточки получена из хинтов классификации шага 3 ([ADR-HTC-10](../../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md), [chunk-schema.md](../../06-rag/chunk-schema.md#откуда-берутся-поля-чанка)). Отдельной эвристики, угадывающей `phase` или `retrieval_purpose` по тексту, не вводится.
 - Stable chunk_id: `{doc_id}#{chunk_type}#{n}` — гарантия идемпотентности.
 - Только approved/metadata_validated карточки попадают в manifest.
 
@@ -222,6 +223,7 @@ sequenceDiagram
 - **AC-02:** Каждая карточка даёт ≥ 3 chunks (summary, definition, metadata_summary).
 - **AC-03:** embedding_text ≤ CHUNK_CHAR_BUDGET.
 - **AC-04:** Chunks наследуют doc_type, version из карточки.
+- **AC-04a** *(целевой, ADR-HTC-10; в коде нет)*: чанк несёт `phase` и `retrieval_purpose`, взятые из metadata карточки, а не вычисленные по тексту; для двух карточек с одинаковыми хинтами значения совпадают. Правило выбора скалярного `phase` чанка из списка `phase` карточки и источник `slot` / `canonical_feature` — открытые вопросы ([ADR-HTC-10](../../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md#открытые-вопросы)); до их решения AC-04a не принимается.
 
 ### Orchestrator
 

@@ -64,6 +64,10 @@ class TestPermissionsMatrix:
                 Permission.KB_VALIDATION_READ,
                 # SETUP-08: auditor — read-only по chunk manifest.
                 Permission.KB_CHUNKING_READ,
+                # SETUP-12: auditor — read-only по таксономии.
+                Permission.KB_TAXONOMY_READ,
+                # SETUP-13: auditor — read-only по библиотеке классификаторов.
+                Permission.KB_CLASSIFIER_READ,
             }
         )
 

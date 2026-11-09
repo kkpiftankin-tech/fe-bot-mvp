@@ -8,6 +8,11 @@
 
 Это заголовочная фича платформы: превратить data-профиль + доменный контекст в защитимый, объяснимый каталог признаков, который пользователь может «отгрузить».
 
+## Вход и выход
+
+- **Вход.** `ContextMemory` (задача, поля, доменный контекст) и `EvidencePack`.
+- **Выход.** `FeatureCandidateSet`: `base_features`, `derived_features`, `interaction_features`; у каждого — name, role, dtype, description, formula, `input_features`, `evidence_doc_ids`.
+
 ## Пользовательский сценарий
 
 Для эталонного radar-сценария агент эмитит 19 признаков:

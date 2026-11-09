@@ -86,6 +86,8 @@ Metadata-схема v1 задаёт единый контракт для YAML fr
 | `validation_rules` | list[ValidationRule] | Список правил проверки. Формат: `{rule_id: string, condition: string, severity: string}`. Только для `validation_rule_card`. |
 | `compatible_models` | list[string] | Список рекомендованных моделей. Только для `task_card`. |
 | `confidence_level` | enum | `high`, `medium`, `low`. Вычисляется `ConfidenceCalculator`. Граничные значения: `high` ≥ 0.85, `medium` 0.6–0.85, `low` < 0.6. |
+| `classifier_path` | list[string] | Целевое. Имена узлов пути классификации по дереву SETUP-13, от корневой рубрики до последнего принятого узла. Трассировка происхождения `doc_type` и онтологических полей. Не участвует в retrieval-фильтрах до решения по path-based фильтру ([ADR-HTC-09](../03-architecture/adr/ADR-HTC-09-generic-tree-classifier-library.md), открытый вопрос). |
+| `classifier_tree_version` | string | Целевое. `ClassifierTree.version`, по которой вычислены хинты. |
 | `owner` | string | Команда или имя ответственного. |
 | `last_verified_at` | datetime | Дата последней верификации содержимого карточки. |
 
@@ -362,8 +364,27 @@ Metadata-схема v1 задаёт единый контракт для YAML fr
 ### 6.4. Приоритеты при конфликте
 
 - Canonical ontology values имеют приоритет над LLM-предложениями.
-- Deterministic metadata extraction (MetadataExtractor) имеет приоритет над LLM metadata при равном или более высоком confidence.
+- Детерминированные источники — metadata-хинты классификации ([SETUP-13 §8](../02-system/features/SETUP-13-classifier-library.md#8-metadata-хинты-узлов)) и `MetadataExtractor` — имеют приоритет над LLM metadata. В целевом дизайне приоритет безусловный: LLM не определяет `doc_type` и онтологические поля (правило «при равном или более высоком confidence» из прежней редакции отменено, [ADR-HTC-10](../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md)).
 - Source trace (`source_files`, `source_sections`) берётся из Source Registry, а не из LLM output.
+
+### 6.5. Происхождение значений полей (целевой дизайн)
+
+Каждое поле metadata имеет ровно один основной источник; смысловая классификация выполняется один раз на шаге 3 и дальше не повторяется.
+
+| Поля | Источник | Кто вычисляет | Может ли LLM изменить |
+| --- | --- | --- | --- |
+| `doc_type` | `doc_type_hint` узла по пути классификации | `ClassificationMetadataResolver` (SETUP-05) | Нет |
+| `domain`, `task_type`, `data_source`, `entity_type`, `phase`, `agent_targets` | одноимённые `*_hint` узла по пути классификации | `ClassificationMetadataResolver` | Нет |
+| `source_files`, `source_sections` | Source Registry | оркестратор SETUP-05 | Нет |
+| `doc_id`, `version`, `status`, `metadata_schema_version` | детерминированные правила | `DocIdGenerator`, оркестратор | Нет |
+| `title`, `retrieval_tags` | содержимое секции | `MetadataExtractor` даёт кандидатов; LLM уточняет | Да (уточняет) |
+| `required_input_fields`, `output_fields`, `feature_tables`, `validation_rules` | структура секции | `MetadataExtractor`; LLM — для doc_type-специфичных полей, которых нет в структуре | Частично |
+| поля типа карточки (`task_inputs`, `compatible_models`, `metrics` и т. п.) | содержимое секции | LLM | Да |
+| `confidence_level` | уверенность классификации, content-confidence LLM, precheck, попытки | `ConfidenceCalculator` | Нет (LLM даёт только вход) |
+| `classifier_path`, `classifier_tree_version` | путь классификации, версия дерева | `ClassificationMetadataResolver` | Нет |
+| `phase`, `retrieval_purpose` чанка | metadata карточки (из хинтов) | Chunking (SETUP-08) | Нет |
+
+Значения хинтов проходят ту же проверку по онтологии, что и любые другие: при сохранении узла дерева, при генерации карточки (`OntologyMapper`) и в SETUP-07.
 
 ---
 

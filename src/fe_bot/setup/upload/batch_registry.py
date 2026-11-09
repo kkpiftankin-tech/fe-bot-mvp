@@ -32,9 +32,7 @@ class BatchNotFoundError(LookupError):
 class BatchAlreadyExistsError(ValueError):
     def __init__(self, upload_batch_id: str) -> None:
         self.upload_batch_id = upload_batch_id
-        super().__init__(
-            f"UploadBatch already registered: {upload_batch_id!r}"
-        )
+        super().__init__(f"UploadBatch already registered: {upload_batch_id!r}")
 
 
 class BatchRegistry(Protocol):
@@ -85,9 +83,7 @@ class InMemoryBatchRegistry:
                 if b.setup_job_id == setup_job_id
             ]
 
-    def get_by_request_id(
-        self, setup_job_id: str, upload_request_id: str
-    ) -> UploadBatch | None:
+    def get_by_request_id(self, setup_job_id: str, upload_request_id: str) -> UploadBatch | None:
         """Линейный поиск.
 
         В продакшене (PostgreSQL) — индекс по (setup_job_id, upload_request_id).

@@ -45,9 +45,7 @@ class ProcessingLogRepository(Protocol):
         """Все события setup job (через все документы)."""
         ...
 
-    def get_by_event_id(
-        self, event_id: str
-    ) -> SourceProcessingLogEntry | None: ...
+    def get_by_event_id(self, event_id: str) -> SourceProcessingLogEntry | None: ...
 
 
 class InMemoryProcessingLogRepository:
@@ -58,9 +56,7 @@ class InMemoryProcessingLogRepository:
         self._by_event: dict[str, SourceProcessingLogEntry] = {}
         self._lock = threading.Lock()
 
-    def append(
-        self, entry: SourceProcessingLogEntry
-    ) -> SourceProcessingLogEntry:
+    def append(self, entry: SourceProcessingLogEntry) -> SourceProcessingLogEntry:
         with self._lock:
             existing = self._by_event.get(entry.event_id)
             if existing is not None:
@@ -103,9 +99,7 @@ class InMemoryProcessingLogRepository:
                     result.append(entry.model_copy(deep=True))
             return result
 
-    def get_by_event_id(
-        self, event_id: str
-    ) -> SourceProcessingLogEntry | None:
+    def get_by_event_id(self, event_id: str) -> SourceProcessingLogEntry | None:
         with self._lock:
             entry = self._by_event.get(event_id)
             return entry.model_copy(deep=True) if entry else None

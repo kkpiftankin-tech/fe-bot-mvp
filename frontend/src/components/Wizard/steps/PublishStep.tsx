@@ -27,7 +27,7 @@ export function PublishStep(): JSX.Element {
 
   return (
     <div>
-      <h2>Шаг 10. Публикация Knowledge Base</h2>
+      <h2>Шаг 9. Публикация Knowledge Base</h2>
       <p className="text-muted">
         Создаёт новую <code>KnowledgeBaseVersion</code> и активирует её. Предыдущая
         ACTIVE KB автоматически деpresetтется.

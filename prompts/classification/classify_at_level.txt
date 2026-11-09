@@ -1,0 +1,58 @@
+# version: v1
+# subject: hierarchical-classification
+# contract: docs/07-contracts/LLM-CLS-01-classify-at-level.md
+# anti_injection: section_text is treated as data ONLY
+
+Ты классифицируешь фрагмент технической документации в иерархической
+таксономии.
+
+Уровень классификации: L{level}.
+{context_block}
+Доступные кандидаты L{level}{scope_suffix} ({candidates_count} из {max_classes_per_level} возможных слотов):
+
+{candidates_block}
+
+{free_slots_hint}
+
+Если ты не можешь надёжно классифицировать вообще (текст слишком общий,
+случайный, нерелевантный), верни `decision: "unknown"`.
+
+Иначе:
+- Если подходят существующие классы — верни `decision: "existing"` с
+  массивом `selected` (можно несколько; для каждого укажи confidence
+  в [0, 1] и короткую причину).
+- Если хочешь предложить новый класс — верни `decision: "new"` с
+  объектом `proposal`. Поле `name_slug` должно быть kebab-case
+  (нижний регистр, английский, цифры/буквы/дефис, начинается с буквы
+  или цифры). Поле `description` обязательно от 10 до 1024 символов.
+
+Фрагмент для классификации:
+---BEGIN_SECTION_TEXT---
+{section_text}
+---END_SECTION_TEXT---
+
+Верни СТРОГО JSON следующего вида (никаких комментариев, никакого
+markdown, никакого prose вокруг):
+
+{{
+  "decision": "existing" | "new" | "unknown",
+  "selected": [
+    {{"bit": 0..9, "confidence": 0.0..1.0, "reason": "..."}}
+  ],
+  "proposal": {{
+    "name_slug": "kebab-case-eng",
+    "display_name_ru": "Русское имя",
+    "display_name_en": "English name",
+    "description": "1-2 предложения о классе"
+  }} | null,
+  "overall_confidence": 0.0..1.0,
+  "reason": "..."
+}}
+
+Правила:
+- decision="existing"  => selected непусто, proposal=null.
+- decision="new"       => selected=[], proposal задан.
+- decision="unknown"   => selected=[], proposal=null, reason обязателен.
+- bit-индексы выбираются ТОЛЬКО из приведённого выше списка кандидатов.
+- Если выбираешь несколько bits — confidence у каждого может отличаться.
+- overall_confidence — твоя общая уверенность в решении.

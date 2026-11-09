@@ -10,7 +10,7 @@ export function ReviewCardsStep(): JSX.Element {
   if (!setupJobId) {
     return (
       <div>
-        <h2>Шаг 6. Проверить карточки</h2>
+        <h2>Шаг 5. Проверить карточки</h2>
         <div className="banner banner-warning">
           Сначала создайте setup_job на шаге 1.
         </div>
@@ -20,7 +20,7 @@ export function ReviewCardsStep(): JSX.Element {
 
   return (
     <div>
-      <h2>Шаг 6. Проверить карточки</h2>
+      <h2>Шаг 5. Проверить карточки</h2>
       <p className="text-muted">
         Human-in-the-loop review для RAG-карточек: фильтруйте по статусу/confidence,
         открывайте карточку, проверяйте metadata/body/source/validation. Действия:
@@ -31,8 +31,8 @@ export function ReviewCardsStep(): JSX.Element {
       <div className="btn-row" style={{ marginBottom: 12 }}>
         <button
           className="btn btn-secondary"
-          onClick={() => setStep("tests")}
-          data-testid="continue-to-tests"
+          onClick={() => setStep("validation")}
+          data-testid="continue-to-validation"
         >
           Далее →
         </button>

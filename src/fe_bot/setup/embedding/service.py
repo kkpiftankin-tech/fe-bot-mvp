@@ -100,9 +100,7 @@ class EmbeddingService:
                     last_error = (
                         f"dimension mismatch: got {len(vector)}, expected {self._dimension}"
                     )
-                    logger.warning(
-                        "Embedding dimension mismatch for chunk %s", chunk.chunk_id
-                    )
+                    logger.warning("Embedding dimension mismatch for chunk %s", chunk.chunk_id)
                     break
                 return Embedding(
                     embedding_id=f"emb_{uuid.uuid4().hex[:12]}",

@@ -55,6 +55,20 @@ recommend_model
 clarify_intent
 ```
 
+## Откуда берутся поля чанка
+
+Чанк не классифицируется заново. Классификация секции выполняется один раз на шаге 3 (дерево [SETUP-13](../02-system/features/SETUP-13-classifier-library.md)); её результат — metadata-хинты узлов — превращается в metadata карточки (шаг 4), а чанк наследует её ([ADR-HTC-10](../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md)). Цепочка: узел дерева → `resolved_hints` → metadata карточки → metadata чанка → retrieval-фильтр агента ([retrieval-policies.md](retrieval-policies.md)).
+
+| Поле чанка | Источник | Статус |
+| --- | --- | --- |
+| `doc_id`, `doc_type`, `domain`, `task_type`, `data_source`, `entity_type`, `agent_targets`, `retrieval_tags` | наследуются от карточки (`card_metadata`) | по [SETUP-08 AC-04](../02-system/features/SETUP-08-chunking.md) чанк наследует `doc_type` и `version`; в коде `Chunk.metadata` — свободный `dict` (`doc_type` и др.), отдельных полей нет |
+| `phase` | `phase` карточки (из `phase_hint` узла) | целевое; в схеме чанка скаляр, у карточки список — правило выбора не определено (ADR-HTC-10, вопрос 4) |
+| `retrieval_purpose` | `retrieval_purpose_hint` узла, перенесённый в metadata карточки; для чанка уточняется по `chunk_type` | целевое; см. оговорку ниже |
+| `chunk_type`, `chunk_id`, `embedding_text`, `priority` | детерминированное правило chunking | реализовано в SETUP-08 (типы `summary`, `definition`, `metadata_summary`) |
+| `slot`, `canonical_feature`, `required_fields` | содержимое карточки (имя признака, входные поля) | правило не определено: хинты узла их не покрывают (ADR-HTC-10, вопрос 2) |
+
+**Оговорка.** Эта страница требует от чанка `phase`, `slot`, `retrieval_purpose` и `canonical_feature`, а [SETUP-08](../02-system/features/SETUP-08-chunking.md) на сегодня описывает только три типа чанков и не задаёт эти поля; модель `Chunk` (`schemas/rag/chunk.py`) отдельных полей `phase`, `slot`, `retrieval_purpose`, `canonical_feature` не содержит. До реализации хинтов `phase` и `retrieval_purpose` чанка не заполняются детерминированным правилом; с хинтами они берутся из metadata карточки, а не из отдельной эвристики в chunking. Остальные поля остаются на проектирование SETUP-08.
+
 ## Связь с агентами
 
 | Агент | Запрашивает chunks с retrieval_purpose |

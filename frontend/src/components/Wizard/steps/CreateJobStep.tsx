@@ -3,6 +3,7 @@ import { useState } from "react";
 import { createSetupJob } from "../../../api/setup";
 import { ApiError } from "../../../api/types";
 import { useWizardStore } from "../../../store/wizardStore";
+import { SavedSetupsPanel } from "../SavedSetupsPanel";
 
 export function CreateJobStep(): JSX.Element {
   const setSetupJobId = useWizardStore((s) => s.setSetupJobId);
@@ -28,6 +29,10 @@ export function CreateJobStep(): JSX.Element {
   return (
     <div>
       <h2>Шаг 1. Создать setup job</h2>
+
+      <SavedSetupsPanel />
+
+      <h3 style={{ marginTop: 24 }}>Или создать новый</h3>
       <p className="text-muted">
         Дайте проекту имя — оно станет идентификатором knowledge base.
       </p>

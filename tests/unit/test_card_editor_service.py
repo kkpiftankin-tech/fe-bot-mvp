@@ -5,14 +5,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from schemas.rag.ontology import DocType
+from schemas.rag.rag_card import CardStatus, RAGCard
 
 from fe_bot.setup.card_review.editor import (
     CardEditorService,
     EmptyEditPayloadError,
     SystemMetadataReadOnlyError,
 )
-from schemas.rag.ontology import DocType
-from schemas.rag.rag_card import CardStatus, RAGCard
 
 
 def _card(**kw: object) -> RAGCard:

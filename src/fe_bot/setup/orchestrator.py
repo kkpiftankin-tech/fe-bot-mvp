@@ -88,6 +88,13 @@ class SetupOrchestrator:
         """Возвращает job (бросает JobNotFoundError)."""
         return self._repo.get(setup_job_id)
 
+    def list_jobs_by_user(self, user_id: str) -> list[RAGSetupJob]:
+        """Возвращает setup_jobs, принадлежащие user_id.
+
+        SETUP-01 UX: для «list of saved setups» на главной wizard'а.
+        """
+        return self._repo.list_by_user(user_id)
+
     def advance(
         self,
         setup_job_id: str,

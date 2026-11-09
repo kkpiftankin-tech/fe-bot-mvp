@@ -3,7 +3,7 @@
 ## Фичи
 
 - [SETUP-01](../../features/SETUP-01-setup-wizard.md) Мастер настройки
-- [SETUP-02..SETUP-11](../../features/feature-index.md) — фазы внутри мастера
+- [SETUP-02..SETUP-13](../../features/feature-index.md) — фазы внутри мастера (включая классификацию секций — SETUP-13, замещающую SETUP-12)
 
 ## Основной актор
 

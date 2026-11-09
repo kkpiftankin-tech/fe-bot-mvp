@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from schemas.setup.validation_report import ValidationReport
 
 from fe_bot.api.dependencies import (
     get_card_registry,
@@ -46,8 +47,6 @@ from fe_bot.setup.metadata_validation.run_repository import (
 from fe_bot.setup.metadata_validation.service import MetadataValidationService
 from fe_bot.setup.orchestrator import SetupOrchestrator
 from fe_bot.setup.repository import JobNotFoundError
-from schemas.setup.validation_report import ValidationReport
-
 
 router = APIRouter(prefix="/api/v1/setup", tags=["validation"])
 

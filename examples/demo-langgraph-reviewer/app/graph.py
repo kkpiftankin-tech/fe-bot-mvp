@@ -2,13 +2,14 @@
 from typing import Literal
 
 # Импортируем константы и класс графа из LangGraph.
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
+
+# Импортируем тип состояния и узлы графа.
+from app.agents import AgentState, planner_node, reviewer_node, revise_node, worker_node
 
 # Импортируем настройки.
 from app.config import settings
 
-# Импортируем тип состояния и узлы графа.
-from app.agents import AgentState, planner_node, worker_node, reviewer_node, revise_node
 
 # Функция роутинга после reviewer.
 def route_after_review(state: AgentState) -> Literal["revise", END]:

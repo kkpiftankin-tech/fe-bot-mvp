@@ -90,3 +90,15 @@ class InMemoryParseJobRepository:
         """Для тестов."""
         with self._lock:
             self._store.clear()
+
+    # ----- Snapshot persistence (dev-only) -----
+
+    def snapshot(self) -> dict[str, object]:
+        with self._lock:
+            return {pid: j.model_dump(mode="json") for pid, j in self._store.items()}
+
+    def restore(self, data: dict[str, object]) -> None:
+        with self._lock:
+            self._store.clear()
+            for pid, raw in data.items():
+                self._store[pid] = ParseJob.model_validate(raw)

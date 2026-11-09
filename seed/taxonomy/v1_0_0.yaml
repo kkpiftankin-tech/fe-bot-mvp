@@ -1,0 +1,146 @@
+# Seed-таксономия SETUP-12, версия v1.0.0.
+#
+# L0 наполнен 9 классами (биты 0..8). Bit 9 свободен — будет занят
+# первым LLM-предложением нового root-класса (через similarity-gate).
+#
+# L1 и L2 — пустые под каждым parent_path: классы появляются
+# автоматически по мере классификации первых секций.
+#
+# class_slug стабильны: не меняются между minor-bump'ами. Изменение
+# slug'а требует major-bump'а версии.
+#
+# doc_type_hint:
+#   используется DocTypeDetector'ом RAG-card generation pipeline'а
+#   для маппинга L0-class → doc_type карточки. Если null — fallback
+#   на родителя по path; если на root нет — секция помечается
+#   INVALID_DOC_TYPE.
+#
+# См. docs/02-system/features/SETUP-12-llm-taxonomy-classification.md §7.
+
+version_id: v1.0.0
+created_at: "2026-06-26T00:00:00Z"
+description: |
+  Bootstrap-версия иерархической LLM-таксономии. L0 наполнен из
+  legacy-enum SectionType (SETUP-04). L1/L2 — пустые, растут
+  через auto-allocation.
+
+entries:
+
+  # ---------------------------------------------------------------------
+  # L0 — корневые семантические категории
+  # ---------------------------------------------------------------------
+
+  - level: 0
+    parent_path: ""
+    bit_index: 0
+    class_slug: task
+    display_name_ru: "Задача"
+    display_name_en: "Task"
+    description: |
+      ML-задача или техническое задание, описывающее цель и контекст
+      обработки данных. Включает постановку, ожидаемый результат,
+      ограничения. Триггер для FeatureSynthesisAgent.
+    doc_type_hint: task_card
+
+  - level: 0
+    parent_path: ""
+    bit_index: 1
+    class_slug: schema
+    display_name_ru: "Схема данных"
+    display_name_en: "Data schema"
+    description: |
+      Описание структуры данных: поля, типы, ограничения, связи.
+      Включает таблицы БД, JSON schemas, протобуф-описания, форматы
+      файлов. Триггер для SchemaProfilingAgent.
+    doc_type_hint: schema_card
+
+  - level: 0
+    parent_path: ""
+    bit_index: 2
+    class_slug: analytics
+    display_name_ru: "Аналитика"
+    display_name_en: "Analytics"
+    description: |
+      Аналитические описания: метрики, агрегации, дашборды, KPI,
+      бизнес-индикаторы. Описание того, что измеряется и как.
+    doc_type_hint: analytics_card
+
+  - level: 0
+    parent_path: ""
+    bit_index: 3
+    class_slug: glossary
+    display_name_ru: "Глоссарий"
+    display_name_en: "Glossary"
+    description: |
+      Термины предметной области с определениями. Дефиниции понятий,
+      аббревиатуры, синонимы. Триггер для DomainContextAgent.
+    doc_type_hint: field_definition_card
+
+  - level: 0
+    parent_path: ""
+    bit_index: 4
+    class_slug: validation_rule
+    display_name_ru: "Правило валидации"
+    display_name_en: "Validation rule"
+    description: |
+      Правила проверки данных: business rules, технические constraint'ы,
+      acceptance criteria для качества данных. Триггер для
+      MetadataValidationService.
+    doc_type_hint: validation_rule_card
+
+  - level: 0
+    parent_path: ""
+    bit_index: 5
+    class_slug: question_template
+    display_name_ru: "Шаблон вопросов"
+    display_name_en: "Question template"
+    description: |
+      Готовые вопросы / smoke-test'ы для retrieval-проверки. Содержит
+      шаблон + ожидаемые ответы / документы. Используется в SETUP-10.
+    doc_type_hint: question_template_card
+
+  - level: 0
+    parent_path: ""
+    bit_index: 6
+    class_slug: domain_profile
+    display_name_ru: "Доменный профиль"
+    display_name_en: "Domain profile"
+    description: |
+      Общее описание домена: контекст, область применения, ключевые
+      сущности и процессы. Включает обзорные документы, introduction-
+      главы, scope-описания.
+    doc_type_hint: domain_profile_card
+
+  - level: 0
+    parent_path: ""
+    bit_index: 7
+    class_slug: process
+    display_name_ru: "Процесс"
+    display_name_en: "Process / workflow"
+    description: |
+      Описание процессов и workflow: последовательность шагов, акторы,
+      условия переходов, артефакты. Включает SOP, технологические карты,
+      бизнес-процессы.
+    doc_type_hint: process_card
+
+  - level: 0
+    parent_path: ""
+    bit_index: 8
+    class_slug: reference
+    display_name_ru: "Справочная информация"
+    display_name_en: "Reference material"
+    description: |
+      Справочные материалы: таблицы кодов, единицы измерения, константы,
+      нормативные документы. Часто статичное, используется как lookup
+      во время Runtime-диалога.
+    doc_type_hint: reference_card
+
+  # bit_index 9 — оставлен свободным под auto-create
+
+  # ---------------------------------------------------------------------
+  # L1 — пусто; растёт автоматически
+  # ---------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------
+  # L2 — пусто; растёт автоматически
+  # ---------------------------------------------------------------------

@@ -116,3 +116,19 @@ class InMemoryParsedSectionRepository:
             self._by_document.clear()
             self._by_job.clear()
             self._by_hash.clear()
+
+    # ----- Snapshot persistence (dev-only) -----
+
+    def snapshot(self) -> dict[str, object]:
+        with self._lock:
+            return {sid: s.model_dump(mode="json") for sid, s in self._store.items()}
+
+    def restore(self, data: dict[str, object]) -> None:
+        with self._lock:
+            self._store.clear()
+            self._by_document.clear()
+            self._by_job.clear()
+            self._by_hash.clear()
+            for raw in data.values():
+                section = ParsedSection.model_validate(raw)
+                self._insert_locked(section)

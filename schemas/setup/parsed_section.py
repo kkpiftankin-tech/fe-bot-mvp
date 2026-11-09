@@ -33,6 +33,9 @@ from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
+from schemas.classifier.classification_result import FragmentClassificationResult
+from schemas.taxonomy.state import ClassificationState
+
 _SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 
 
@@ -175,6 +178,28 @@ class ParsedSection(BaseModel):
         default_factory=dict,
         description="Структурированные вложения: tables (list[dict]), "
         "json_blocks (list[dict]), links (list[str]).",
+    )
+
+    # --- SETUP-12: hierarchical taxonomy (legacy, см. classifier_result ниже) ---
+    classification_state: ClassificationState | None = Field(
+        default=None,
+        description=(
+            "SETUP-12 (legacy, заменено SETUP-13 — см. ADR-HTC-09): "
+            "иерархическое bitmap-состояние классификации. Больше не "
+            "заполняется новым кодом — оставлено для обратной "
+            "совместимости с ранее сохранёнными секциями."
+        ),
+    )
+
+    # --- SETUP-13: classifier tree (ADR-HTC-09) ---
+    classifier_result: FragmentClassificationResult | None = Field(
+        default=None,
+        description=(
+            "SETUP-13: результат многоуровневой классификации по дереву "
+            "классификаторов (путь узлов от корня + confidence/reason на "
+            "каждом уровне). None означает, что классификация по дереву "
+            "не запускалась (FE_BOT_TAXONOMY_MODE != 'llm')."
+        ),
     )
 
     # --- timestamps & metadata ---

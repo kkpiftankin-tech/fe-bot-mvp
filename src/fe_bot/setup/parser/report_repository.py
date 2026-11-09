@@ -77,3 +77,20 @@ class InMemoryDocumentParseReportRepository:
         with self._lock:
             self._by_id.clear()
             self._by_pair.clear()
+
+    # ----- Snapshot persistence (dev-only) -----
+
+    def snapshot(self) -> dict[str, object]:
+        with self._lock:
+            return {rid: r.model_dump(mode="json") for rid, r in self._by_id.items()}
+
+    def restore(self, data: dict[str, object]) -> None:
+        with self._lock:
+            self._by_id.clear()
+            self._by_pair.clear()
+            for raw in data.values():
+                report = DocumentParseReport.model_validate(raw)
+                self._by_id[report.parse_report_id] = report
+                self._by_pair[(report.parse_job_id, report.source_document_id)] = (
+                    report.parse_report_id
+                )

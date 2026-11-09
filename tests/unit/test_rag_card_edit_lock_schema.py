@@ -6,7 +6,6 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
-
 from schemas.setup.rag_card_edit_lock import EditLockStatus, RAGCardEditLockDTO
 
 

@@ -39,6 +39,11 @@ class RetrievalRequest:
     filters: dict[str, Any] | None = None
     deduplicate_by_doc: bool = True
     min_score: float | None = None
+    # SETUP-12 wiring: иерархический фильтр через TaxonomyFilter.
+    # Простые critеria попадают в pre-filter (filters dict); сложные
+    # (bitmap, path_prefix) применяются post-фильтром через
+    # apply_filter_to_hits. См. retrieval.py.
+    taxonomy_filter: Any | None = None
 
 
 @dataclass(slots=True)
@@ -110,7 +115,22 @@ class RetrievalService:
         else:
             collections = self._index_client.list_collections()
 
-        # 3. Search в каждой collection.
+        # 3. SETUP-12 wiring: merge taxonomy_filter exact-match критериев
+        # с пользовательскими filters (taxonomy pre-фильтр).
+        effective_filters = dict(request.filters or {})
+        if request.taxonomy_filter is not None:
+            try:
+                effective_filters.update(
+                    request.taxonomy_filter.to_payload_dict()
+                )
+            except AttributeError:
+                logger.warning(
+                    "RetrievalRequest.taxonomy_filter has no to_payload_dict; "
+                    "ignored: %r",
+                    request.taxonomy_filter,
+                )
+
+        # 4. Search в каждой collection.
         all_hits: list[SearchHit] = []
         for collection in collections:
             try:
@@ -118,18 +138,33 @@ class RetrievalService:
                     collection=collection,
                     query_vector=query_vector,
                     top_k=request.top_k,
-                    filters=request.filters,
+                    filters=effective_filters or None,
                 )
             except Exception as exc:
-                logger.warning(
-                    "Search in collection %s failed: %s", collection, exc
-                )
+                logger.warning("Search in collection %s failed: %s", collection, exc)
                 continue
             all_hits.extend(hits)
 
         result.collections_searched = collections
 
-        # 4. Глобальное ранжирование + опциональный фильтр по min_score + дедуп.
+        # 5. SETUP-12 wiring: taxonomy post-фильтр для критериев, не
+        # выразимых через exact-match (path_prefix, bitmap-tests).
+        if (
+            request.taxonomy_filter is not None
+            and getattr(request.taxonomy_filter, "has_bitwise_criteria", False)
+        ):
+            try:
+                from fe_bot.taxonomy import apply_filter_to_hits
+
+                all_hits = apply_filter_to_hits(
+                    all_hits, request.taxonomy_filter
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to apply taxonomy post-filter; returning unfiltered hits"
+                )
+
+        # 6. Глобальное ранжирование + опциональный фильтр по min_score + дедуп.
         if request.min_score is not None:
             all_hits = [h for h in all_hits if h.score >= request.min_score]
         # Сортируем глобально (если искали в нескольких collections).
@@ -149,12 +184,8 @@ class RetrievalService:
         else:
             result.hits = all_hits[: request.top_k]
 
-        result.latency_ms = int(
-            (datetime.now(tz=UTC) - start).total_seconds() * 1000
-        )
+        result.latency_ms = int((datetime.now(tz=UTC) - start).total_seconds() * 1000)
         return result
 
-    def search_batch(
-        self, requests: Iterable[RetrievalRequest]
-    ) -> list[RetrievalResult]:
+    def search_batch(self, requests: Iterable[RetrievalRequest]) -> list[RetrievalResult]:
         return [self.search(r) for r in requests]

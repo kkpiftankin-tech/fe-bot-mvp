@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import time
 import uuid
 from collections import Counter
@@ -38,10 +39,12 @@ from schemas.setup.parse_report import (
     DocumentParseReport,
     SectionsSummary,
 )
+from schemas.setup.parsed_section import ParsedSectionStatus
 from schemas.setup.processing_log import ProcessingLogLevel, ProcessingLogStep
 from schemas.setup.source_document import SourceDocument, SourceDocumentStatus
 
 from fe_bot.audit.service import AuditAction, AuditService
+from fe_bot.llm_gateway.exceptions import InvalidLLMOutputError, LLMUnavailableError
 from fe_bot.observability.metrics import MetricsRegistry
 from fe_bot.setup.events import EventBus, SetupProgressEvent
 from fe_bot.setup.parser.classifier import SectionClassifier
@@ -67,6 +70,7 @@ from fe_bot.setup.parser.job_repository import (
     DuplicateParseJobError,
     InMemoryParseJobRepository,
 )
+from fe_bot.setup.parser.length_normalizer import SectionLengthNormalizer
 from fe_bot.setup.parser.registry import (
     ParseFailedError,
     ParserRegistry,
@@ -81,12 +85,24 @@ from fe_bot.setup.parser.section_repository import (
 from fe_bot.setup.source_registry.lifecycle import SourceLifecycleService
 from fe_bot.storage.artifact_service import ArtifactStorage
 
+logger = logging.getLogger(__name__)
+
 _DEFAULT_CONFIDENCE_THRESHOLD = 0.7
+
+# Сколько подряд неудачных вызовов классификатора считать системным сбоем
+# (Ollama недоступна) и прекращать документ, а не единичным блипом,
+# который можно просто пропустить и продолжить со следующей секции.
+_MAX_CONSECUTIVE_CLASSIFICATION_FAILURES = 3
 
 _PARSEABLE_STATUSES = frozenset(
     {
         SourceDocumentStatus.WAITING_FOR_PARSING,
         SourceDocumentStatus.REGISTERED,
+        # SETUP-04 crash-safety: если crash случился в фазе PARSING,
+        # source остался в этом статусе; для resume разрешаем
+        # повторный проход. Дедупликация секций обеспечивается
+        # content_hash lookup'ом в _process_document.
+        SourceDocumentStatus.PARSING,
     }
 )
 
@@ -149,6 +165,14 @@ class DocumentParserOrchestrator:
         audit_service: AuditService | None = None,
         metrics: MetricsRegistry | None = None,
         confidence_threshold: float = _DEFAULT_CONFIDENCE_THRESHOLD,
+        # SETUP-04 crash-safety: коллбек, который вызывается после каждой
+        # классифицированной секции. В prod-DI wired на persister.save() —
+        # snapshot на disk, чтобы аварийная остановка не съедала часы работы.
+        on_section_progress: object | None = None,
+        # SETUP-04: объединяет слишком короткие и делит слишком длинные
+        # секции ДО классификации — см. length_normalizer.py module docstring
+        # (мотивация: нумерованные списки, ложно принятые за заголовки PDF).
+        length_normalizer: SectionLengthNormalizer | None = None,
     ) -> None:
         self._jobs = parse_job_repo
         self._docs = document_repo
@@ -162,6 +186,18 @@ class DocumentParserOrchestrator:
         self._audit = audit_service
         self._metrics = metrics
         self._threshold = confidence_threshold
+        self._on_section_progress = on_section_progress
+        self._length_normalizer = length_normalizer or SectionLengthNormalizer()
+
+    def _emit_progress(self) -> None:
+        """Best-effort persist snapshot. Не бросает при сбое."""
+        cb = self._on_section_progress
+        if cb is None:
+            return
+        try:
+            cb()  # type: ignore[misc]
+        except Exception:  # noqa: BLE001
+            logger.debug("on_section_progress callback failed", exc_info=True)
 
     # ============================================================
     # Public API
@@ -270,16 +306,37 @@ class DocumentParserOrchestrator:
         total_sections = 0
         low_confidence_total = 0
 
+        last_failed_doc: ParseJobDocument | None = None
         for pjd in self._docs.list_for_job(parse_job_id):
             outcome = self._process_document(job=job, doc=pjd)
+            # sections_count/low_confidence считаем независимо от исхода
+            # документа — FAILED посреди документа (напр. сбой
+            # классификатора после сотен уже обработанных секций) всё
+            # равно приносит реальный прогресс, который не должен
+            # теряться из общих счётчиков job'а.
+            total_sections += outcome.sections_count
+            low_confidence_total += outcome.low_confidence
             if outcome.status == ParseJobDocumentStatus.COMPLETED:
                 succeeded += 1
-                total_sections += outcome.sections_count
-                low_confidence_total += outcome.low_confidence
             elif outcome.status == ParseJobDocumentStatus.FAILED:
                 failed += 1
+                # _process_document мутирует переданный doc (pjd) на месте
+                # через _fail_document — pjd.error_code/error_message уже
+                # содержат ПРИЧИНУ конкретного сбоя (classification/parse/...).
+                last_failed_doc = pjd
             else:  # SKIPPED
                 skipped += 1
+            # SETUP-04 UX (incremental progress): обновляем счётчики
+            # job'а сразу после каждого документа, чтобы frontend polling
+            # видел прогресс в реальном времени (важно при HTC LLM-mode,
+            # где парсинг документа может занимать 30+ секунд).
+            job = self._jobs.get(parse_job_id)
+            job.processed_documents = succeeded
+            job.failed_documents = failed
+            job.total_sections = total_sections
+            job.low_confidence_sections = low_confidence_total
+            job.updated_at = _now()
+            self._jobs.update(job)
 
         finished_at = _now()
         duration_ms = max(int((finished_at - started_at).total_seconds() * 1000), 0)
@@ -299,8 +356,22 @@ class DocumentParserOrchestrator:
         job.finished_at = finished_at
         job.updated_at = finished_at
         if target == ParseJobStatus.FAILED:
-            job.error_code = ParseErrorCode.SECTION_DETECTION_FAILED
-            job.error_message = f"All {job.total_documents} documents failed to parse"
+            # Пропагируем РЕАЛЬНУЮ причину последнего упавшего документа
+            # (classification / parse / unsupported format / ...) вместо
+            # жёстко зашитого SECTION_DETECTION_FAILED, который был верен
+            # только для самого первого сценария сбоя (файл не парсится) и
+            # вводит в заблуждение для остальных (напр. сбой классификатора
+            # после того, как сотни секций уже были успешно обработаны).
+            job.error_code = (
+                last_failed_doc.error_code
+                if last_failed_doc is not None and last_failed_doc.error_code is not None
+                else ParseErrorCode.SECTION_DETECTION_FAILED
+            )
+            job.error_message = (
+                last_failed_doc.error_message
+                if last_failed_doc is not None and last_failed_doc.error_message
+                else f"All {job.total_documents} documents failed to parse"
+            )
         self._jobs.update(job)
 
         # Финальные events + метрики.
@@ -498,8 +569,123 @@ class DocumentParserOrchestrator:
                 low_confidence=0,
             )
 
-        classified = self._classifier.apply_to_sections(parsed_sections)
-        self._sections.save_batch(classified)
+        # SETUP-04: нормализуем длину секций (merge коротких/split длинных)
+        # ДО классификации — чтобы classifier_result и content_hash
+        # считались уже для финальных границ секций, а не для сырых
+        # boundary-кандидатов стратегии.
+        parsed_sections = self._length_normalizer.normalize(parsed_sections)
+
+        # SETUP-04 crash-safety + resume: сначала строим карту уже-
+        # классифицированных секций для этого документа. Секции, чей
+        # content_hash совпадает с сохранённой + имеет classification_state,
+        # переиспользуем — не проводим повторной LLM-классификации.
+        # Это делает парсинг resumable: после аварийной остановки
+        # повторный запуск продолжает с точки прерывания, не переклассифицируя
+        # уже готовые секции.
+        try:
+            existing_by_hash = {
+                s.content_hash: s
+                for s in self._sections.list_for_document(
+                    source.source_document_id
+                )
+                if s.parse_job_id == job.parse_job_id
+                and (
+                    s.classification_state is not None
+                    or s.section_status == ParsedSectionStatus.CLASSIFIED
+                )
+            }
+        except Exception:  # noqa: BLE001
+            existing_by_hash = {}
+            logger.debug(
+                "Failed to load existing classified sections for resume",
+                exc_info=True,
+            )
+
+        classified: list = []
+        resumed_count = 0
+        consecutive_classification_failures = 0
+        for section in parsed_sections:
+            reused = existing_by_hash.get(section.content_hash)
+            if reused is not None:
+                classified.append(reused)
+                resumed_count += 1
+                consecutive_classification_failures = 0
+                continue
+            try:
+                [single] = self._classifier.apply_to_sections([section])
+                consecutive_classification_failures = 0
+            except (LLMUnavailableError, InvalidLLMOutputError) as exc:
+                # Классификатор (напр. ClassifierTreeSectionClassifier в
+                # FE_BOT_TAXONOMY_MODE=llm) реально ходит в Ollama — один
+                # медленный/сбойный вызов посреди документа не должен
+                # стирать часы уже сделанной работы. Несколько ПОДРЯД
+                # сбоев, наоборот, похожи на системную проблему (Ollama
+                # недоступна) — тогда прогонять весь остаток документа
+                # секция за секцией с таймаутом на каждой бессмысленно,
+                # и мы останавливаемся, помечая документ FAILED.
+                consecutive_classification_failures += 1
+                logger.warning(
+                    "Classification failed for section %s (doc %s, %d in a row): %s",
+                    section.section_id,
+                    source.source_document_id,
+                    consecutive_classification_failures,
+                    exc,
+                )
+                if (
+                    consecutive_classification_failures
+                    >= _MAX_CONSECUTIVE_CLASSIFICATION_FAILURES
+                ):
+                    self._fail_document(
+                        job=job,
+                        doc=doc,
+                        error_code=ParseErrorCode.CLASSIFICATION_FAILED,
+                        reason=(
+                            f"Classifier failed {consecutive_classification_failures}x "
+                            f"in a row (last: section {section.section_id}): {exc}"
+                        ),
+                        strategy=strategy_enum,
+                        sections_count=len(classified),
+                        low_confidence=sum(
+                            1 for s in classified if (s.confidence or 0) < self._threshold
+                        ),
+                    )
+                    return _DocumentOutcome(
+                        status=ParseJobDocumentStatus.FAILED,
+                        sections_count=len(classified),
+                        low_confidence=sum(
+                            1 for s in classified if (s.confidence or 0) < self._threshold
+                        ),
+                    )
+                # Единичный (не системный) сбой — секция остаётся
+                # неклассифицированной, обработка документа продолжается.
+                single = section.model_copy(
+                    update={
+                        "confidence": 0.0,
+                        "section_status": ParsedSectionStatus.LOW_CONFIDENCE,
+                        "classification_method": "classifier_tree_failed",
+                    }
+                )
+            classified.append(single)
+            self._sections.save_batch([single])
+            try:
+                job_live = self._jobs.get(job.parse_job_id)
+                job_live.total_sections += 1
+                job_live.updated_at = _now()
+                self._jobs.update(job_live)
+            except Exception:  # noqa: BLE001 - live update is best-effort
+                logger.debug(
+                    "Failed to update job live section count", exc_info=True
+                )
+            # Snapshot на disk после каждой классификации: аварийная
+            # остановка не съест часы работы.
+            self._emit_progress()
+        if resumed_count > 0:
+            logger.info(
+                "Resumed %d of %d sections for document %s (content_hash match)",
+                resumed_count,
+                len(parsed_sections),
+                source.source_document_id,
+            )
 
         low_confidence = sum(1 for s in classified if (s.confidence or 0) < self._threshold)
 
@@ -653,6 +839,8 @@ class DocumentParserOrchestrator:
         error_code: ParseErrorCode,
         reason: str,
         strategy: ParserStrategyEnum | None,
+        sections_count: int = 0,
+        low_confidence: int = 0,
     ) -> None:
         finished_at = _now()
         doc.status = ParseJobDocumentStatus.FAILED
@@ -671,8 +859,15 @@ class DocumentParserOrchestrator:
             source_document_id=doc.source_document_id,
             status=ParseJobDocumentStatus.FAILED,
             parser_strategy=strategy,
+            # sections_count/low_confidence: 0 для ранних сбоев (файл не
+            # найден, формат не поддержан — секций ещё не было); ненулевое
+            # значение передают вызовы, упавшие ПОСЛЕ того, как часть
+            # секций уже успешно обработана (напр. сбой классификатора
+            # посреди документа) — иначе отчёт врёт, что не сделано ничего.
             summary=SectionsSummary(
-                sections_count=0, sections_by_type={}, low_confidence_sections=0
+                sections_count=sections_count,
+                sections_by_type={},
+                low_confidence_sections=low_confidence,
             ),
             errors=[{"code": error_code.value, "message": reason}],
             warnings=[],

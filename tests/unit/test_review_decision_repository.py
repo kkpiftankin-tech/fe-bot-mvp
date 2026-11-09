@@ -5,12 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from schemas.setup.review_decision import ReviewDecision, ReviewDecisionDTO
 
 from fe_bot.setup.card_review.decision_repository import (
     InMemoryReviewDecisionRepository,
     ReviewDecisionNotFoundError,
 )
-from schemas.setup.review_decision import ReviewDecision, ReviewDecisionDTO
 
 
 def _now() -> datetime:

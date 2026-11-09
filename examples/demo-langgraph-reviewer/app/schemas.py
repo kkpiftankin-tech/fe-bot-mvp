@@ -1,6 +1,7 @@
 # Импортируем BaseModel для описания входных и выходных DTO FastAPI.
 from pydantic import BaseModel
 
+
 # Описываем схему входного HTTP-запроса.
 class RunAgentsRequest(BaseModel):
     # Пользовательская задача, которую надо решить агентной системе.

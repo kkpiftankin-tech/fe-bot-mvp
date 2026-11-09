@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fe_bot.setup.card_review.versioning import VersioningService
 from schemas.rag.ontology import DocType
 from schemas.rag.rag_card import CardStatus, RAGCard
+
+from fe_bot.setup.card_review.versioning import VersioningService
 
 
 def _card(version: str = "1.0", **kw: object) -> RAGCard:

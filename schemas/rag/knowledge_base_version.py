@@ -50,16 +50,12 @@ _IMMUTABLE_AFTER_ACTIVE: frozenset[str] = frozenset(
 
 class InvalidKBTransitionError(ValueError):
     def __init__(self, from_status: KBStatus, to_status: KBStatus) -> None:
-        super().__init__(
-            f"Invalid KB status transition: {from_status.value} → {to_status.value}"
-        )
+        super().__init__(f"Invalid KB status transition: {from_status.value} → {to_status.value}")
 
 
 class ImmutableKBFieldError(ValueError):
     def __init__(self, field: str) -> None:
-        super().__init__(
-            f"Field {field!r} is immutable after KB transitioned to ACTIVE"
-        )
+        super().__init__(f"Field {field!r} is immutable after KB transitioned to ACTIVE")
 
 
 class KnowledgeBaseVersion(BaseModel):

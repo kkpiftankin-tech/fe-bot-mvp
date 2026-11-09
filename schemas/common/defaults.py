@@ -14,6 +14,23 @@ MAX_FILE_SIZE_BYTES: int = 100 * 1024 * 1024  # 100 MB
 DEFAULT_EMBEDDING_MODEL: str = "nomic-embed-text"
 DEFAULT_EMBEDDING_DIMENSION: int = 768
 
+# Generation-модель по умолчанию для лёгких узких LLM-задач (RAG card
+# generation, черновик описания класса классификатора и т.п.) — единая
+# точка правды вместо копии строки "llama3.2" в каждом потребителе
+# (LLMGateway.DEFAULT_MODEL, card_generator, rag_card_generation,
+# classifier.description_generator, GenerateRAGCardsRequest.llm_model).
+DEFAULT_LLM_MODEL: str = "llama3.2"
+
+# Модель для многоуровневой классификации фрагмента по дереву
+# классификаторов (SETUP-13 / ADR-HTC-09) — НЕ равна DEFAULT_LLM_MODEL
+# осознанно: llama3.2 (3.2B) на живых тестах систематически не различал
+# содержание фрагментов (стабильно уходил в один и тот же класс, включая
+# заведомо нерелевантные тексты) — см. ADR-HTC-09 §"Реализовано" и
+# docs/02-system/features/SETUP-13-classifier-library.md §7 для деталей
+# эксперимента. qwen2.5:7b даёт содержательно верную классификацию,
+# заметно медленнее (~2-3x latency на уровень дерева).
+DEFAULT_CLASSIFIER_MODEL: str = "qwen2.5:7b"
+
 # TODO[ADR-008]: Разрешена ли публикация KB с warning-ами retrieval-тестов.
 ALLOW_PUBLISH_WITH_WARNINGS: bool = False
 

@@ -92,17 +92,17 @@ class DocumentParserService:
         if document.content_type == "application/json":
             return parse_json(data=data, **kwargs)
         if document.content_type == "application/pdf":
-            return parse_pdf(**kwargs)
+            return parse_pdf(data=data, **kwargs)
         if (
             document.content_type
             == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         ):
-            return parse_docx(**kwargs)
+            return parse_docx(data=data, **kwargs)
         if (
             document.content_type
             == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         ):
-            return parse_xlsx(**kwargs)
+            return parse_xlsx(data=data, **kwargs)
         raise UnsupportedFormatError(
             f"No parser registered for content_type={document.content_type!r}",
             filename=document.filename,

@@ -21,6 +21,7 @@ import re
 import uuid
 from datetime import UTC, datetime
 
+from schemas.common.defaults import DEFAULT_LLM_MODEL
 from schemas.rag.ontology import ConfidenceLevel, DocType, Phase
 from schemas.rag.rag_card import CardStatus, RAGCard
 from schemas.rag.rag_metadata import RAGMetadata
@@ -202,7 +203,7 @@ class RAGCardGenerator:
         llm_gateway: LLMGateway,
         fallback_generator: RAGCardFallbackGenerator | None = None,
         created_by: str = "rag_card_generator",
-        model: str = "llama3.2",
+        model: str = DEFAULT_LLM_MODEL,
     ) -> None:
         self._gateway = llm_gateway
         self._fallback = fallback_generator
@@ -234,9 +235,7 @@ class RAGCardGenerator:
             attempts=result.call.attempts,
         )
 
-    def generate_many(
-        self, sections: list[ParsedSection]
-    ) -> list[RAGCardGeneratorResult]:
+    def generate_many(self, sections: list[ParsedSection]) -> list[RAGCardGeneratorResult]:
         return [self.generate(s) for s in sections]
 
 
@@ -275,9 +274,7 @@ class RAGCardFallbackGenerator:
             doc_type=doc_type,
             title=title,
             summary=f"Auto-generated stub from section '{title}' (fallback, no LLM).",
-            body_markdown=(
-                section.normalized_text or section.raw_text or "(empty)"
-            ).strip(),
+            body_markdown=(section.normalized_text or section.raw_text or "(empty)").strip(),
             domain=[],
             task_type=[],
             data_source=[],
@@ -296,9 +293,7 @@ class RAGCardFallbackGenerator:
             created_by=self._created_by,
             unique_suffix=section.setup_job_id,
         )
-        return RAGCardGeneratorResult(
-            card=card, metadata=metadata, used_fallback=True, attempts=0
-        )
+        return RAGCardGeneratorResult(card=card, metadata=metadata, used_fallback=True, attempts=0)
 
 
 def _default_phase_for(doc_type: DocType) -> Phase:

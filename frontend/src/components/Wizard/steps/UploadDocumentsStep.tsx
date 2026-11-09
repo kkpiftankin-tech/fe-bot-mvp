@@ -135,9 +135,9 @@ export function UploadDocumentsStep(): JSX.Element {
         </button>
         <button
           className="btn btn-secondary"
-          onClick={() => setStep("run")}
+          onClick={() => setStep("parse")}
           disabled={documents.filter((d) => d.status !== "removed").length === 0}
-          data-testid="continue-to-run"
+          data-testid="continue-to-parse"
         >
           Далее →
         </button>

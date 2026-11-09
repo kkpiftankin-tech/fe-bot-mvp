@@ -1,5 +1,18 @@
 """Setup pipeline (T-S01-023, расширен в T-S01-028, T-S01-032).
 
+LEGACY / internal-only: этот monolith-пайплайн больше не является частью
+пользовательского visard-флоу (убран из frontend WIZARD_STEPS, см.
+frontend/src/store/wizardStore.ts). Он использует собственный
+rule-based-only парсер и card_generator.service.RAGCardGenerator —
+независимый от гранулярных SETUP-04/05/06/07/08 сервисов, которые сейчас
+управляют мастером. Запуск этого пайплайна поверх setup_job, уже
+прошедшего через гранулярный флоу, создаёт ВТОРОЙ, несовместимый по
+качеству и doc_id-схеме набор карточек для тех же секций в общем
+card_registry — это и было источником путаницы в UI (одинаковый источник,
+разные карточки в разных вкладках). Оставлен как internal-инструмент для
+точечной диагностики/тестов; НЕ вызывать поверх job'а, где уже
+отрабатывали гранулярные шаги.
+
 Тонкая обёртка над сервисами parser + card_generator + orchestrator +
 validation + chunking/embedding/indexing.
 
@@ -139,8 +152,19 @@ class SetupPipeline:
             except ParserError as exc:
                 result.documents_failed += 1
                 result.errors.append(f"PARSE[{document.filename}]: {exc}")
-                logger.warning(
-                    "Document parse failed for %s: %s", document.source_document_id, exc
+                logger.warning("Document parse failed for %s: %s", document.source_document_id, exc)
+            except Exception as exc:  # noqa: BLE001 — третьи lib (pypdf, openpyxl) бросают разное
+                # Defensive guard: parser-стратегии могут выкинуть exception,
+                # не унаследованный от ParserError (DependencyError из pypdf,
+                # InvalidFileException из openpyxl и др.). Падение здесь
+                # обнулило бы прогресс остальных документов — поэтому изолируем.
+                result.documents_failed += 1
+                result.errors.append(
+                    f"PARSE[{document.filename}]: unexpected {type(exc).__name__}: {exc}"
+                )
+                logger.exception(
+                    "Unexpected parser failure for %s",
+                    document.source_document_id,
                 )
 
         if result.documents_parsed == 0:
@@ -248,9 +272,7 @@ class SetupPipeline:
             )
         return len(records)
 
-    def _run_indexing_pipeline(
-        self, setup_job_id: str, result: PipelineResult
-    ) -> None:
+    def _run_indexing_pipeline(self, setup_job_id: str, result: PipelineResult) -> None:
         """T-S01-032: chunking → embedding → indexing."""
         assert self._vector_indexer is not None
         approved_records = self._card_registry.list_for_job(
@@ -366,12 +388,8 @@ class SetupPipeline:
                 result.errors.append(f"DUP[{exc.doc_id}]: already in registry")
                 logger.warning("Card %s already exists in registry", exc.doc_id)
             except Exception as exc:
-                result.errors.append(
-                    f"REGISTRY[{gen.card.doc_id}]: {type(exc).__name__}: {exc}"
-                )
-                logger.warning(
-                    "Failed to persist card %s: %s", gen.card.doc_id, exc
-                )
+                result.errors.append(f"REGISTRY[{gen.card.doc_id}]: {type(exc).__name__}: {exc}")
+                logger.warning("Failed to persist card %s: %s", gen.card.doc_id, exc)
 
     def _safe_generate_cards(
         self,
@@ -385,9 +403,7 @@ class SetupPipeline:
                 gen_result = self._card_generator.generate(section)
                 generated.append(gen_result)
             except Exception as exc:
-                result.errors.append(
-                    f"CARD[{section.section_id}]: {type(exc).__name__}: {exc}"
-                )
+                result.errors.append(f"CARD[{section.section_id}]: {type(exc).__name__}: {exc}")
                 logger.warning(
                     "Card generation failed for section %s: %s",
                     section.section_id,

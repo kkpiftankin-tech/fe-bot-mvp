@@ -74,6 +74,27 @@ class TestBlockingErrors:
         assert not report.passed
         assert "FRONT_MATTER_INVALID" in [e["code"] for e in report.errors]
 
+    def test_placeholder_echo_detected(self, precheck: CardValidationPrecheck) -> None:
+        # Слабая модель скопировала prompt-инструкцию вместо реального контента
+        # (обнаружено на mars_fe1 / Handbook of Multisensor Data Fusion):
+        # body_markdown-структура в prompts/rag_card/*.txt задана через
+        # "<one paragraph describing...>"-плейсхолдеры.
+        body = (
+            "# X\n\n## Определение\n"
+            "<one or two sentences defining what this field represents in the domain context>"
+        )
+        report = precheck.check(_valid_draft(body_markdown=body))
+        assert not report.passed
+        assert "CARD_BODY_PLACEHOLDER_ECHO" in [e["code"] for e in report.errors]
+
+    def test_real_content_with_angle_brackets_is_not_flagged(
+        self, precheck: CardValidationPrecheck
+    ) -> None:
+        # Короткие/нетекстовые угловые скобки — не проблема, нужно 3+ слова.
+        body = "# X\n\n## Описание\nСм. <Table 1.2> и диапазон <0.5>."
+        report = precheck.check(_valid_draft(body_markdown=body))
+        assert report.passed
+
 
 class TestWarnings:
     def test_retrieval_tags_empty_warning(self, precheck: CardValidationPrecheck) -> None:

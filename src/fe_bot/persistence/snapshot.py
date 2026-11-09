@@ -194,6 +194,9 @@ def register_default_state(persister: SnapshotPersister) -> None:
     persister.register_repo("validation_runs", deps._validation_run_repo)
     # SETUP-08 (T-S08-010): chunk manifest state.
     persister.register_repo("chunk_manifests", deps._chunk_manifest_repo)
+    # SETUP-13 (ADR-HTC-09): classifier library — пользователь редактирует
+    # дерево через UI, это должно переживать рестарт backend'а.
+    persister.register_repo("classifier_trees", deps._classifier_repo)
     persister.register_artifact_storage("artifacts", deps._artifact_storage)
 
 

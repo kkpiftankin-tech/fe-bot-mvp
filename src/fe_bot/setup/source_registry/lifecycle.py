@@ -303,11 +303,7 @@ class SourceLifecycleService:
         )
         stored = self._log.append(entry)
         # При ERROR публикуем processing_failed + metrics — только для нового лога.
-        if (
-            level == ProcessingLogLevel.ERROR
-            and is_new_log
-            and stored.event_id == event_id
-        ):
+        if level == ProcessingLogLevel.ERROR and is_new_log and stored.event_id == event_id:
             self._publish(
                 event_type="source.document.processing_failed",
                 setup_job_id=setup_job_id,
@@ -399,9 +395,7 @@ class SourceLifecycleService:
             )
         return stored
 
-    def get_lineage(
-        self, source_document_id: str
-    ) -> tuple[list[SourceLineageRelation], object]:
+    def get_lineage(self, source_document_id: str) -> tuple[list[SourceLineageRelation], object]:
         """Возвращает (relations, counters)."""
         self._registry.get(source_document_id)  # 404 если нет
         relations = self._lineage.list_for_source(source_document_id)
@@ -527,9 +521,7 @@ class SourceLifecycleService:
 
         # Прогоняем через SourceDocumentUserMetadata для sanitization (XSS-safe)
         # + per-field length validation. После model_dump получаем чистые значения.
-        sanitized = SourceDocumentUserMetadata(**existing_user).model_dump(
-            exclude_defaults=False
-        )
+        sanitized = SourceDocumentUserMetadata(**existing_user).model_dump(exclude_defaults=False)
 
         new_metadata = dict(document.metadata)
         new_metadata["user"] = sanitized

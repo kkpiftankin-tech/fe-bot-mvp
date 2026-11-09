@@ -1084,6 +1084,19 @@ pytest -m prompt_eval -q
 
 ---
 
+## Дополнение: единая классификация (ADR-HTC-10, планируется)
+
+Тесты под AC-52..60 ([SETUP-05 §19](../02-system/features/SETUP-05-rag-cards-generation.md)) и изменённые AC-10 / AC-17. Реализации и тестов пока нет; статистика ниже относится к прежнему дизайну (51 AC).
+
+| Уровень | Что проверяется | Целевой файл |
+| --- | --- | --- |
+| unit | `ClassificationMetadataResolver`: поля из `resolved_hints`; нет `doc_type_hint` → `DOC_TYPE_HINT_MISSING`; нет `domain_hint`/`phase_hint` → `metadata_incomplete`; `doc_type_hint` вне поддерживаемых → `INVALID_DOC_TYPE`; детерминизм | `tests/unit/test_classification_metadata_resolver.py` |
+| unit | `RAGCardDraft` / адаптер: ответ LLM с `doc_type` и онтологическими полями не меняет итог | `tests/unit/test_llm_card_adapter.py` |
+| unit | `ConfidenceCalculator`: вход — `classifier_result.overall_confidence`, а не legacy `ClassificationState` | `tests/unit/test_confidence_calculator.py` |
+| component | Оркестратор: секция без хинта не вызывает LLM, job-секция `failed` с причиной и путём; остальные секции job обрабатываются | `tests/component/test_rag_card_generation_orchestrator.py` |
+| integration | Правка хинта в SETUP-13 → повтор генерации секции даёт карточку без перепарсинга | `tests/integration/test_rag_cards_endpoints.py` |
+| prompt eval | Шаблоны `prompts/rag_card/*.txt` не просят `doc_type` и онтологические поля; классификация передаётся как контекст | `tests/prompt_eval/` |
+
 ## Итоговая статистика
 
 | Параметр | Значение |

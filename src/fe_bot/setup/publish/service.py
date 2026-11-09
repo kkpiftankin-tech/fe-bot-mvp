@@ -48,13 +48,9 @@ class KBRepository(Protocol):
 
     def get(self, kb_version: str) -> KnowledgeBaseVersion: ...
 
-    def list_for_setup_job(
-        self, setup_job_id: str
-    ) -> list[KnowledgeBaseVersion]: ...
+    def list_for_setup_job(self, setup_job_id: str) -> list[KnowledgeBaseVersion]: ...
 
-    def get_active_for_setup_job(
-        self, setup_job_id: str
-    ) -> KnowledgeBaseVersion | None: ...
+    def get_active_for_setup_job(self, setup_job_id: str) -> KnowledgeBaseVersion | None: ...
 
 
 @dataclass(slots=True)
@@ -76,18 +72,14 @@ class InMemoryKBRepository:
             raise KBNotFoundError(kb_version)
         return self._store[kb_version].kb.model_copy(deep=True)
 
-    def list_for_setup_job(
-        self, setup_job_id: str
-    ) -> list[KnowledgeBaseVersion]:
+    def list_for_setup_job(self, setup_job_id: str) -> list[KnowledgeBaseVersion]:
         return [
             r.kb.model_copy(deep=True)
             for r in self._store.values()
             if r.kb.setup_job_id == setup_job_id
         ]
 
-    def get_active_for_setup_job(
-        self, setup_job_id: str
-    ) -> KnowledgeBaseVersion | None:
+    def get_active_for_setup_job(self, setup_job_id: str) -> KnowledgeBaseVersion | None:
         for r in self._store.values():
             if r.kb.setup_job_id == setup_job_id and r.kb.is_active:
                 return r.kb.model_copy(deep=True)
@@ -131,9 +123,7 @@ class KBPublishService:
         self._repo.save(kb)
         return kb
 
-    def mark_ready(
-        self, kb_version: str, *, retrieval_test_report_id: str
-    ) -> KnowledgeBaseVersion:
+    def mark_ready(self, kb_version: str, *, retrieval_test_report_id: str) -> KnowledgeBaseVersion:
         kb = self._repo.get(kb_version)
         kb.retrieval_test_report_id = retrieval_test_report_id
         kb.transition_to(KBStatus.READY)
@@ -156,8 +146,7 @@ class KBPublishService:
         kb = self._repo.get(kb_version)
         if kb.status != KBStatus.READY:
             raise PublishNotReadyError(
-                f"KB {kb_version} is in status {kb.status.value}; "
-                "must be READY to activate"
+                f"KB {kb_version} is in status {kb.status.value}; must be READY to activate"
             )
 
         # Деактивируем предыдущую ACTIVE.

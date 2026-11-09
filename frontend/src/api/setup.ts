@@ -27,6 +27,24 @@ export function createSetupJob(
   return apiRequest("/setup/jobs", { method: "POST", body: request });
 }
 
+export interface SetupJobListItem extends SetupJobResponse {
+  active_parse_job_id: string | null;
+  // SETUP-04 UX: последний parse_job независимо от статуса (в отличие от
+  // active_parse_job_id, который null, если парсинг уже завершён).
+  latest_parse_job_id: string | null;
+  parsed_sections_count: number;
+  parse_job_status: string | null;
+}
+
+export interface SetupJobListResponse {
+  items: SetupJobListItem[];
+  total: number;
+}
+
+export function listSetupJobs(): Promise<SetupJobListResponse> {
+  return apiRequest("/setup/jobs");
+}
+
 export function getSetupJob(setupJobId: string): Promise<SetupJobResponse> {
   return apiRequest(`/setup/${setupJobId}`);
 }

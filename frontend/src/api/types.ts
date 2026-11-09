@@ -614,6 +614,69 @@ export interface ParsedSectionListItemDTO {
   section_index: number;
   parent_section_id: string | null;
   content_hash: string;
+  /** null для rule_based mode, "classifier_tree" при FE_BOT_TAXONOMY_MODE=llm. */
+  classification_method?: string | null;
+  /** SETUP-12 (legacy, заменено SETUP-13 — см. ADR-HTC-09). */
+  classification_state?: ClassificationStateDTO | null;
+  /** SETUP-13: путь по дереву классификаторов. */
+  classifier_result?: FragmentClassificationResult | null;
+}
+
+export interface ClassificationStateDTO {
+  classification_bitmap: number;
+  primary_l0_idx: number | null;
+  primary_l1_idx: number | null;
+  unknown_at_level: number | null;
+  confidence_per_level: [number, number, number];
+  confidence_per_bit: Record<string, number>;
+  taxonomy_version_id: string;
+  classification_method: string;
+  auto_created_bits: unknown[];
+  llm_trace_ids: string[];
+}
+
+export interface ClassificationBitDTO {
+  level: number;
+  bit_index: number;
+  class_slug: string;
+  display_name_ru: string;
+  doc_type_hint: string | null;
+  confidence: number | null;
+  is_primary: boolean;
+}
+
+export interface ParsedSectionDetailDTO {
+  section_id: string;
+  parse_job_id: string;
+  source_document_id: string;
+  title: string;
+  heading_path: string[];
+  section_index: number;
+  parent_section_id: string | null;
+  section_type: SectionType;
+  section_status: ParsedSectionStatus;
+  confidence: number | null;
+  content_hash: string;
+  raw_text: string;
+  normalized_text: string;
+  start_offset: number | null;
+  end_offset: number | null;
+  metadata: Record<string, unknown>;
+  classification_method: string | null;
+  classification_state: ClassificationStateDTO | null;
+  classification_bits: ClassificationBitDTO[];
+  /** SETUP-13: путь по дереву классификаторов. */
+  classifier_result: FragmentClassificationResult | null;
+}
+
+export interface ClassificationPromptDTO {
+  level: number;
+  parent_path: string;
+  candidates_count: number;
+  free_slots_count: number;
+  rendered_prompt: string;
+  can_render: boolean;
+  reason: string | null;
 }
 
 export interface ParsedSectionsResponse {
@@ -1160,4 +1223,70 @@ export interface LLMModelStats {
 export interface LLMStatsResponse {
   models: LLMModelStats[];
   total_calls: number;
+}
+
+// ============================================================
+// SETUP-13 / ADR-HTC-09: Classifier Library (дерево классов + промпты)
+// ============================================================
+
+export interface ClassifierNodeDTO {
+  node_id: string;
+  parent_id: string | null;
+  level: number;
+  name: string;
+  description: string;
+  children_ids: string[];
+  prompt_override: string | null;
+  is_leaf: boolean;
+  path: string[];
+}
+
+export interface ClassifierNodeDetailsResponse {
+  node: ClassifierNodeDTO;
+  children: ClassifierNodeDTO[];
+  rendered_prompt: string | null;
+}
+
+export interface ClassifierTreeSummaryResponse {
+  tree_id: string;
+  version: string;
+  description: string;
+  total_nodes: number;
+  roots: ClassifierNodeDTO[];
+}
+
+export interface CreateChildNodeRequest {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateNodeRequest {
+  name?: string;
+  description?: string;
+  prompt_override?: string;
+  clear_prompt_override?: boolean;
+}
+
+export interface DeleteNodeResponse {
+  node_id: string;
+  deleted_count: number;
+  message: string;
+}
+
+export interface GenerateDescriptionResponse {
+  description: string;
+}
+
+export interface ClassifierPathStep {
+  node_id: string;
+  name: string;
+  confidence: number;
+  reason: string;
+}
+
+/** SETUP-13: результат многоуровневой классификации фрагмента по дереву. */
+export interface FragmentClassificationResult {
+  tree_id: string;
+  path: ClassifierPathStep[];
+  reached_leaf: boolean;
 }

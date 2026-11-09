@@ -65,21 +65,104 @@ export function RunPipelineStep(): JSX.Element {
       ? runMutation.error.message
       : runMutation.error?.message;
 
+  // Legacy pipeline можно запустить ТОЛЬКО когда setup_job в files_uploaded
+  // (см. src/fe_bot/setup/pipeline.py:97). Если пользователь уже прошёл
+  // steps 3/4 вручную, статус будет sections_extracted / дальше → warning.
+  const currentStatus = progressQuery.data?.status;
+  const canRunPipeline =
+    !currentStatus || currentStatus === "files_uploaded";
+
   return (
     <div>
-      <h2>Шаг 5. Запустить pipeline</h2>
-      <p className="text-muted">
-        Pipeline проходит: parsing → sections_extracted → rag_cards_generating →
-        metadata_validating → (review_required ИЛИ chunking → embedding →
-        indexing).
-      </p>
+      <h2>Legacy: быстрый одношаговый прогон (вне мастера)</h2>
+      <div
+        className="banner banner-warning"
+        style={{ marginBottom: 12 }}
+        data-testid="run-pipeline-intro"
+      >
+        <strong>Этот экран больше не является шагом мастера</strong> и
+        недоступен из навигации. Он использует отдельный (legacy) генератор
+        карточек, независимый от шагов 3/4/5 — при запуске он заново парсит
+        документы и заново генерирует карточки для тех же секций, создавая
+        дубликаты в общем реестре карточек с другим качеством metadata.
+        Используйте пошаговый путь мастера (3 → 4 → 5 → 6 → 7 → 8 → 9 → 10).
+        Компонент оставлен только как internal-инструмент для точечной
+        диагностики/тестов.
+      </div>
+
+      {!canRunPipeline && (
+        <div
+          className="banner banner-warning"
+          style={{ marginBottom: 12 }}
+          data-testid="run-pipeline-blocked"
+        >
+          <strong>Быстрый запуск недоступен для этого setup'а.</strong> Текущий
+          статус — <code>{currentStatus}</code>, а pipeline умеет стартовать
+          только с <code>files_uploaded</code>.
+          {currentStatus === "sections_extracted" && (
+            <>
+              {" "}
+              Продолжите на <strong>шаге 4</strong> «Генерация RAG-карточек».
+            </>
+          )}
+          {currentStatus === "rag_cards_generating" && (
+            <>
+              {" "}
+              Продолжите на <strong>шаге 6</strong> «Проверить карточки».
+            </>
+          )}
+          {currentStatus === "metadata_validating" && (
+            <>
+              {" "}
+              Продолжите на <strong>шаге 7</strong> «Валидация metadata».
+            </>
+          )}
+          {currentStatus === "review_required" && (
+            <>
+              {" "}
+              Продолжите на <strong>шаге 6</strong> «Проверить карточки».
+            </>
+          )}
+          {currentStatus === "chunking" && (
+            <>
+              {" "}
+              Продолжите на <strong>шаге 8</strong> «Chunking».
+            </>
+          )}
+          {currentStatus === "embedding" ||
+          currentStatus === "indexing" ||
+          currentStatus === "retrieval_testing" ? (
+            <>
+              {" "}
+              Продолжите на <strong>шаге 9</strong> «Retrieval-tests».
+            </>
+          ) : null}
+          {currentStatus === "publishing" && (
+            <>
+              {" "}
+              Продолжите на <strong>шаге 10</strong> «Публикация KB».
+            </>
+          )}
+          {currentStatus === "ready" && (
+            <>
+              {" "}
+              Setup уже готов. См. <strong>шаг 11</strong> «Отчёт».
+            </>
+          )}
+        </div>
+      )}
 
       <div className="btn-row">
         <button
           className="btn"
           onClick={() => runMutation.mutate()}
-          disabled={runMutation.isPending}
+          disabled={runMutation.isPending || !canRunPipeline}
           data-testid="submit-run"
+          title={
+            !canRunPipeline
+              ? "Быстрый запуск возможен только для setup'ов в статусе files_uploaded"
+              : undefined
+          }
         >
           {runMutation.isPending ? "Запускаем…" : "Запустить pipeline"}
         </button>

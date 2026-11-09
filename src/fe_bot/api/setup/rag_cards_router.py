@@ -38,7 +38,6 @@ from fe_bot.api.dependencies import (
     get_rag_card_source_link_repo,
     require_permission,
 )
-from fe_bot.audit.service import AuditAction, AuditService
 from fe_bot.api.setup.rag_cards_dto import (
     CancelRAGCardJobResponse,
     CardGenerationSummaryDTO,
@@ -54,6 +53,7 @@ from fe_bot.api.setup.rag_cards_dto import (
     RegenerateRAGCardRequest,
     RegenerateRAGCardResponse,
 )
+from fe_bot.audit.service import AuditAction, AuditService
 from fe_bot.auth.permissions import Permission
 from fe_bot.auth.service import Principal
 from fe_bot.setup.card_registry.service import (

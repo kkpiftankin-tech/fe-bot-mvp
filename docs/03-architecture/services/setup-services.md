@@ -248,7 +248,7 @@ Parsed section, source metadata, ontology, prompt template, card generation poli
 
 ### Реализует фичи
 
-[SETUP-05](../../02-system/features/SETUP-05-rag-card-generation.md).
+[SETUP-05](../../02-system/features/SETUP-05-rag-cards-generation.md).
 
 ---
 

@@ -20,6 +20,83 @@ ParsedSectionDTO
   → review_required / generated / ready_for_metadata_validation
 ```
 
+**Что такое RAG-карточка — пример.** RAG-карточка — это не «кусок текста из документа», а отдельный файл знания с машинно-читаемым заголовком (YAML) и человекочитаемым телом (Markdown), который агенты Runtime находят по metadata, а не по полнотекстовому поиску. Один `ParsedSection` → одна карточка (в MVP).
+
+*Вход* — секция, полученная на шаге 3 (SETUP-04), уже классифицированная по дереву SETUP-13:
+
+```text
+ParsedSection.raw_text:
+"Доступность датчика (uptime) вычисляется как отношение времени работы
+без сбоев к общему времени наблюдения. Используется для оценки надёжности
+РЛС и как входной признак для detection_probability."
+
+classifier_result.path: АСУ → Данные → Аналитика → Признаки сенсора
+resolved_hints: doc_type_hint=analytics_card, domain_hint=naval,
+                phase_hint=[feature_synthesis, validation]
+```
+
+*Выход* — файл `rag/cards/setup_001/analytics.sensor_analytics_T.v1.md` (DTO-62), который реально сохраняется в Object Storage и позже превращается в chunks (SETUP-08) и Evidence Pack:
+
+```markdown
+---
+doc_id: analytics.sensor_analytics_T.v1
+doc_type: analytics_card
+title: Sensor analytics feature table
+version: "1.0"
+status: ready_for_metadata_validation
+source_files: [analytics.md]
+source_sections: [sec_005]
+domain: [naval]
+task_type: [classification, ranking]
+data_source: [radar, tracks_fused]
+entity_type: [sensor]
+phase: [feature_synthesis, validation]
+agent_targets: [FeatureSynthesisAgent, FeatureCriticAgent]
+retrieval_tags: [sensor, analytics, uptime, detection_probability]
+feature_tables:
+  - table_id: sensor_feature_table
+    columns: [sensor_id, uptime, detection_probability, scan_rate, rcs_mean]
+output_fields: [uptime, detection_probability]
+confidence_level: medium
+metadata_schema_version: rag_metadata_v1
+---
+
+# Sensor analytics feature table
+
+## Описание аналитической таблицы
+Таблица признаков надёжности и обнаружения по датчику (РЛС): доступность
+(uptime), вероятность обнаружения, темп сканирования, средний RCS целей.
+
+## Признаки
+| Признак | Тип | Описание |
+|---------|-----|----------|
+| uptime | float [0..1] | Доля времени без сбоев за период наблюдения |
+| detection_probability | float [0..1] | Оценка вероятности обнаружения цели сенсором |
+
+## Агрегации
+Период агрегации — скользящее окно 24 часа per `sensor_id`.
+
+## Источник
+`analytics.md`, секция `sec_005`.
+```
+
+Зачем каждая часть нужна конкретному агенту:
+
+| Что в карточке | Зачем это агенту |
+| --- | --- |
+| `doc_type: analytics_card` | `RAGRetrievalAgent` фильтрует только аналитические карточки, когда `FeatureSynthesisAgent` ищет готовые агрегаты, а не схему данных или ML-задачу |
+| `domain`, `data_source`, `entity_type` | Сужают выдачу до «наземный/морской», «radar/AIS», «sensor/track» — чтобы не подсунуть карточку про авиацию в морскую задачу |
+| `phase: [feature_synthesis, validation]` | Карточка попадёт в Evidence Pack на фазах синтеза признаков и валидации, но не на фазе выбора модели |
+| `agent_targets` | Прямое попадание в контекст `FeatureSynthesisAgent`/`FeatureCriticAgent`, даже если фаза совпадает у многих карточек |
+| `feature_tables` / `output_fields` | `FeatureSynthesisAgent` узнаёт точные имена колонок (`uptime`, `detection_probability`), которые можно использовать как `input_features` производного признака |
+| `retrieval_tags` | Дополнительный сигнал для ранжирования при векторном поиске (например, запрос «надёжность РЛС») |
+| `confidence_level: medium` | Карточка уйдёт в `review_required` (SETUP-06) перед индексацией — агент не получит непроверенную metadata |
+| Markdown body | Человекочитаемое содержание — то, что реально попадёт в `embedding_text` чанка и что видит эксперт на review |
+
+Полный нормативный список значений `doc_type`, кто их потребляет, и примеры YAML для всех 7 типов — [document-types.md](../../06-rag/document-types.md), [metadata-schema.md §7.2](../../06-rag/metadata-schema.md#72-примеры-yaml-front-matter-для-всех-7-doc_types).
+
+**Принцип разделения с шагом 3.** Смысловая классификация секции выполняется один раз — на шаге 3 по дереву классов ([SETUP-13](SETUP-13-classifier-library.md)). Шаг 4 её **не повторяет**: `doc_type` и онтологические поля (`domain`, `task_type`, `data_source`, `entity_type`, `phase`, `agent_targets`) выводятся детерминированно из metadata-хинтов узлов дерева, а LLM синтезирует только содержимое карточки (заголовок, тело, doc_type-специфичные поля, уточняющие `retrieval_tags`). Решение и обоснование — [ADR-HTC-10](../../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md). **Статус реализации:** целевой дизайн; код пока классифицирует повторно (`DocTypeDetector` по `section_type` и LLM-промпт), см. [TD-HTC-004](../../tech-debt/TD-HTC-004-duplicate-classification-in-card-generation.md).
+
 **Позиция в пайплайне:**
 
 ```
@@ -42,7 +119,7 @@ SETUP-01 Мастер настройки
 
 ### 2.1. Бизнес-контекст
 
-После завершения SETUP-04 в системе существуют `ParsedSectionDTO` с полями `section_id`, `source_document_id`, `title`, `heading_path`, `section_type`, `raw_text`, `normalized_text`, `structural_payload`, `confidence`, `classification_method`. Однако для RAG-pipeline этого недостаточно: нет единого формата, нет типа карточки, нет retrieval tags, нет source trace в управляемом виде, нет статуса качества.
+После завершения SETUP-04 в системе существуют `ParsedSectionDTO` с полями `section_id`, `source_document_id`, `title`, `heading_path`, `section_type`, `raw_text`, `normalized_text`, `structural_payload`, `confidence`, `classification_method`, `classifier_result` (путь по дереву классов SETUP-13 и, в целевом дизайне, разрешённые metadata-хинты). Однако для RAG-pipeline этого недостаточно: нет единого формата, нет типа карточки, нет retrieval tags, нет source trace в управляемом виде, нет статуса качества.
 
 Pain points без SETUP-05:
 
@@ -103,6 +180,10 @@ SETUP-08 Chunking и SETUP-09 Vector DB должны работать с RAG-к�
 | `FE_BOT_FORCE_FALLBACK` | Флаг принудительного fallback | Env-переменная для bypass LLM; уже введена в SETUP-04 |
 | `GENERATED_FROM` | Lineage relation type | Тип связи `parsed_section → rag_card` в Source Lineage; расширяет SETUP-03 |
 | `card_version` | Версия карточки | Монотонно возрастающий номер версии (`"1.0"`, `"2.0"`, ...); повторная генерация инкрементирует |
+| `classifier_result` | Результат классификации | Путь секции по дереву классов SETUP-13 с confidence на каждом уровне; заполняется на шаге 3 |
+| Metadata hints / `resolved_hints` | Хинты узлов / разрешённые хинты | Тип карточки и онтологические поля, заданные на узлах дерева и слитые по пути классификации (более специфичный узел перекрывает общий); [SETUP-13 §8](SETUP-13-classifier-library.md#8-metadata-хинты-узлов) |
+| `ClassificationMetadataResolver` | Резолвер metadata классификации | Компонент SETUP-05, выводящий `doc_type` и онтологические поля из `resolved_hints` без LLM; заменяет `DocTypeDetector` |
+| Content-confidence | Уверенность в содержании | Оценка LLM того, насколько извлечённое содержание соответствует тексту секции; не путать с уверенностью классификации (`classifier_result.overall_confidence`) |
 
 ### Словарь типов RAG-карточек (MVP scope)
 
@@ -117,6 +198,38 @@ SETUP-08 Chunking и SETUP-09 Vector DB должны работать с RAG-к�
 | `question_template_card` | Шаблон уточняющего вопроса пользователя |
 
 Out of scope MVP: `model_recommendation_card`, `ontology_card`, `relationship_card`.
+
+### Справочник полей metadata (кратко)
+
+Полная нормативная таблица с типами, обязательностью и допустимыми значениями — [metadata-schema.md §3–§5](../../06-rag/metadata-schema.md#3-общие-обязательные-поля-для-всех-doc_type). Здесь — быстрая шпаргалка «какой тип у поля и где он обязателен».
+
+**Общие поля (для всех `doc_type`):**
+
+| Поле | Тип | Обязательность | Источник значения |
+| --- | --- | --- | --- |
+| `doc_id` | `string` | обязательное | `DocIdGenerator` (детерминированно) |
+| `doc_type` | `enum` (7 значений MVP) | обязательное | `doc_type_hint` по пути классификации |
+| `title` | `string` | обязательное | `MetadataExtractor` + уточнение LLM |
+| `version` / `card_version` | `string` (semver-like) | обязательное | монотонно растёт при regenerate |
+| `status` | `enum` (10 значений) | обязательное | оркестратор SETUP-05 |
+| `source_files`, `source_sections` | `list[string]` | обязательное, непустой | Source Registry |
+| `domain`, `phase` | `list[string]` (canonical ontology) | обязательное | `*_hint` по пути классификации |
+| `retrieval_tags` | `list[string]`, 3–10 элементов | опциональное (warning при пустом) | content, уточняет LLM |
+| `task_type`, `data_source`, `entity_type`, `agent_targets` | `list[string]` (canonical ontology) | опциональное | `*_hint` по пути классификации |
+| `confidence_level` | `enum`: `high` \| `medium` \| `low` | опциональное | `ConfidenceCalculator` |
+| `metadata_schema_version` | `string` (константа `rag_metadata_v1`) | обязательное | оркестратор |
+
+**Поля, специфичные для `doc_type` (обязательны только для своего типа):**
+
+| Поле | Тип | Обязательно для |
+| --- | --- | --- |
+| `feature_tables` | `list[{table_id: string, columns: list[string]}]` | `schema_card`, `analytics_card` |
+| `required_input_fields` | `list[string]` | `field_definition_card`, `feature_pattern_card`, `question_template_card`; опционально для остальных |
+| `output_fields` | `list[string]` | `analytics_card`; опционально для `schema_card`, `feature_pattern_card` |
+| `validation_rules` | `list[{rule_id: string, condition: string, severity: "error"\|"warning"}]` | `validation_rule_card` |
+| `compatible_models` | `list[string]` | только `task_card` (опционально) |
+
+Пример заполненной карточки `analytics_card` (с этими полями) — выше, в §1. Примеры для остальных 6 типов — [metadata-schema.md §7.2](../../06-rag/metadata-schema.md#72-примеры-yaml-front-matter-для-всех-7-doc_types).
 
 ### Словарь статусов RAG-карточки
 
@@ -154,10 +267,10 @@ Out of scope MVP: `model_recommendation_card`, `ontology_card`, `relationship_ca
 Входит в реализацию:
 
 - запуск генерации RAG-карточек по parsed sections одного setup job;
-- определение целевого `doc_type` rule-based маппингом `section_type → doc_type`;
+- определение целевого `doc_type` и онтологических полей (`domain`, `task_type`, `data_source`, `entity_type`, `phase`, `agent_targets`) детерминированно из `classifier_result.resolved_hints` через `ClassificationMetadataResolver` — без повторной классификации и без LLM; явный отказ, если по пути нет `doc_type_hint`;
 - детерминированная генерация `doc_id` по схеме `{doc_type_short}.{slug(title)}.v{N}`;
-- генерация YAML front matter и Markdown body через `LLMGateway` + fallback на rule-based `RAGCardFallbackGenerator`;
-- извлечение и нормализация metadata через `MetadataExtractor` + `OntologyMapper`;
+- генерация содержимого карточки (заголовок, Markdown body, doc_type-специфичные поля, уточняющие `retrieval_tags`) через `LLMGateway` + fallback на rule-based `RAGCardFallbackGenerator`; классификация передаётся LLM как контекст только для чтения;
+- извлечение содержательных кандидатов metadata через `MetadataExtractor` и проверка значений (хинтов и кандидатов) по онтологии через `OntologyMapper`;
 - использование `ontology_v1.yaml` (rag/ontology/ontology_v1.yaml) для domain, task_type, data_source, entity_type, phase, agent_targets;
 - версионирование prompt templates через `PromptTemplateRegistry`;
 - базовый precheck структуры карточки (`CardValidationPrecheck`);
@@ -196,6 +309,7 @@ Out of scope MVP: `model_recommendation_card`, `ontology_card`, `relationship_ca
 
 **Технические:**
 - вход `RAGCardGenerator` — только `ParsedSectionDTO`; не raw-документы;
+- ни `doc_type`, ни онтологические поля не определяются LLM и не выводятся из `section_type`; источник — `classifier_result.resolved_hints` ([ADR-HTC-10](../../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md));
 - LLM output проходит schema validation перед сохранением; не является источником истины;
 - карточка без `source_document_id` и `source_section_id` не сохраняется как usable;
 - карточка без `doc_id` не передаётся в SETUP-07; без `doc_type` не передаётся в SETUP-08;
@@ -213,7 +327,7 @@ Out of scope MVP: `model_recommendation_card`, `ontology_card`, `relationship_ca
 - `confidence_threshold` дефолт 0.7; переопределяется через `GenerateRAGCardsRequest.options`;
 - `doc_id` deterministic из `{doc_type_short}.{slug(title)}.v{N}`; конфликт — новая `card_version`;
 - lineage использует `GENERATED_FROM` — расширение существующего `LineageRelationType`;
-- существующие `RAGCardGenerator` и `RAGCardFallbackGenerator` переиспользуются под капотом нового оркестратора; legacy-path `SetupPipeline._generate_cards` сохраняется для обратной совместимости.
+- существующие `RAGCardGenerator` и `RAGCardFallbackGenerator` переиспользуются под капотом нового оркестратора; legacy-path `SetupPipeline._generate_cards` сохраняется для обратной совместимости. Принцип единой классификации ([ADR-HTC-10](../../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md)) на legacy-path не распространяется: он помечен LEGACY/internal-only и не входит в мастер, его промпт (`card_generator/service.py::_build_prompt`) тоже просит LLM выбрать `doc_type` — судьба описана в [TD-HTC-004](../../tech-debt/TD-HTC-004-duplicate-classification-in-card-generation.md).
 
 ---
 
@@ -365,15 +479,15 @@ Out of scope MVP: `model_recommendation_card`, `ontology_card`, `relationship_ca
 3. API Backend проверяет права пользователя через Auth Service.
 4. Setup Orchestrator создаёт `RAGCardGenerationJob` (DTO-59) со статусом `created`.
 5. Orchestrator получает список parsed sections через Parsed Section Registry.
-6. Для каждой секции: `DocTypeDetector` определяет целевой `doc_type` по `section_type`.
-7. `MetadataExtractor` извлекает candidate metadata из `structural_payload` и `raw_text`.
-8. `OntologyMapper` нормализует domain, task_type, data_source, entity_type, phase, agent_targets, retrieval_tags по `ontology_v1.yaml`.
-9. `PromptTemplateRegistry` выбирает шаблон по `doc_type` и `section_type`.
-10. `LLMCardAdapter` формирует prompt и вызывает LLM Gateway (или `RAGCardFallbackGenerator` если `FE_BOT_FORCE_FALLBACK=1`).
-11. LLM возвращает structured output: front_matter, body_markdown, confidence, warnings.
+6. Для каждой секции `ClassificationMetadataResolver` пересчитывает `resolved_hints` по `classifier_result.path` и текущей версии дерева SETUP-13 и берёт целевой `doc_type` из `doc_type_hint`. Если по пути нет `doc_type_hint`, секция дальше не обрабатывается: `DOC_TYPE_HINT_MISSING` (N11).
+7. Тот же компонент берёт из хинтов `domain`, `task_type`, `data_source`, `entity_type`, `phase`, `agent_targets` — без LLM. Если нет обязательных `domain` или `phase`, карточка получит `metadata_incomplete` (A2).
+8. `MetadataExtractor` извлекает содержательные кандидаты (`title`, `retrieval_tags`, `required_input_fields`, `output_fields`, `feature_tables`) из `structural_payload` и `raw_text`; `OntologyMapper` проверяет, что значения хинтов и кандидатов канонические по `ontology_v1.yaml`.
+9. `PromptTemplateRegistry` выбирает шаблон по `doc_type`.
+10. `LLMCardAdapter` формирует prompt, передавая классификацию (путь, `doc_type`, онтологические поля) как контекст только для чтения, и вызывает LLM Gateway (или `RAGCardFallbackGenerator` если `FE_BOT_FORCE_FALLBACK=1`).
+11. LLM возвращает structured output: `title`, `body_markdown`, doc_type-специфичные поля, уточняющие `retrieval_tags`, content-confidence, warnings. `doc_type` и онтологические поля в ответе LLM, если они есть, игнорируются: итоговые значения берутся из хинтов.
 12. `MarkdownBuilder` собирает YAML front matter + sanitized Markdown body.
 13. `CardValidationPrecheck` проверяет базовые требования: `doc_id`, `doc_type`, `source_files`, `source_sections`, body, retrieval_tags.
-14. `ConfidenceCalculator` вычисляет `confidence_level` и проверяет `score < threshold`.
+14. `ConfidenceCalculator` вычисляет `confidence_level` и проверяет `score < threshold`. Уверенность классификации (`classifier_result.overall_confidence`, минимум по пути) и content-confidence LLM — два раздельных входа; формула штрафа за неуверенную классификацию определяется при реализации (сейчас штраф читается из legacy `ClassificationState` SETUP-12).
 15. `DocIdGenerator` генерирует `doc_id` по схеме `{doc_type_short}.{slug(title)}.v{N}`.
 16. `RAGCardRegistry.save_version(card)` и `save_metadata(metadata)` — сохранение карточки.
 17. `ArtifactStorage` сохраняет Markdown-файл по пути `rag/cards/{setup_job_id}/{doc_id}.md`.
@@ -396,7 +510,7 @@ Out of scope MVP: `model_recommendation_card`, `ontology_card`, `relationship_ca
 Если `doc_type` поддерживает template generation → карточка создаётся rule-based через `RAGCardFallbackGenerator` с `confidence_level=low`, статус `review_required`. Иначе → `generation_failed`.
 
 **A2. Metadata неполная.**
-Карточка создана, но mandatory metadata отсутствует: `status = metadata_incomplete`. Карточка сохраняется как `draft`, не переходит к chunking.
+Карточка создана, но mandatory metadata отсутствует: `status = metadata_incomplete`. Карточка сохраняется как `draft`, не переходит к chunking. В целевом дизайне типичная причина — у ветки дерева нет `domain_hint` или `phase_hint`; `review_required_reason` перечисляет недостающие поля («taxonomy node has no domain_hint»). Исправление: задать хинт на узле (SETUP-13) и повторить генерацию секции.
 
 **A3. Body пустой или слишком короткий.**
 LLM вернула пустое body: `status = body_empty`, `error_code = CARD_BODY_EMPTY`. Система делает retry.
@@ -430,8 +544,8 @@ LLM вернула пустое body: `status = body_empty`, `error_code = CARD_
 **N5. LLM вернула невалидный JSON.**
 `error_code = INVALID_LLM_OUTPUT`. Система делает repair-prompt retry (до 3 попыток). После исчерпания → `generation_failed`.
 
-**N6. LLM сгенерировала неизвестный `doc_type`.**
-`error_code = INVALID_DOC_TYPE`. Карточка не переходит в `ready_for_metadata_validation`.
+**N6. `doc_type` из хинта не поддерживается генерацией.**
+`doc_type_hint` указывает значение вне 7 поддерживаемых MVP-типов (или вне `DocType`): `error_code = INVALID_DOC_TYPE` с причиной «doc_type вне поддерживаемых генерацией» и путём классификации. Карточка не создаётся. `doc_type` в ответе LLM не учитывается, поэтому «LLM сгенерировала неизвестный `doc_type`» больше не отдельный сценарий.
 
 **N7. Ошибка сохранения Markdown-файла.**
 `RAGCardDTO` сохранён, artifact не сохранён → `status = generation_failed`, `error_code = CARD_ARTIFACT_SAVE_FAILED`. Запускается compensation: artifact помечается orphaned.
@@ -444,6 +558,9 @@ API возвращает `403 Insufficient Permissions`.
 
 **N10. Попытка prompt injection из parsed section.**
 `MarkdownBuilder` sanitizes body: удаляет HTML-комментарии, `<script>`, `system:`-like spans. Prompt template структурно изолирует user_content.
+
+**N11. По пути классификации нет `doc_type_hint`.**
+Секция не отправляется в LLM (без `doc_type` нельзя выбрать шаблон), карточка не создаётся. Job-секция получает `status = failed` и `error_code = DOC_TYPE_HINT_MISSING`; `error_message` — «taxonomy node has no doc_type_hint» с путём классификации (например, `Требования → Функциональные требования`). То же при отсутствии `classifier_result` у секции (нет активного дерева, `rule_based`-режим) с причиной «section has no classifier_result». UI показывает такие секции отдельно как «требует настройки дерева»; выход — задать хинт на узле (SETUP-13) и повторить генерацию failed-секции без перезапуска всего job (AC-44). Это явный отказ, а не молчаливый `INVALID_DOC_TYPE` с `section_type=other`. Одна и та же ветка без хинта даёт много таких секций сразу — это сигнал настроить дерево, а не ошибка отдельных секций.
 
 ### 7.4. Постусловия
 
@@ -521,6 +638,7 @@ sequenceDiagram
     participant Gen as RAGCardGenerationOrchestrator
     participant PSR as ParsedSection Registry
     participant SR as Source Registry
+    participant CMR as ClassificationMetadataResolver
     participant ME as MetadataExtractor
     participant OM as OntologyMapper
     participant PTR as PromptTemplateRegistry
@@ -553,14 +671,20 @@ sequenceDiagram
     loop для каждой ParsedSection
         Gen->>PSR: get section
         Gen->>SR: get source trace
+        Gen->>CMR: resolve(section.classifier_result)
+        break нет doc_type_hint по пути классификации
+            CMR-->>Gen: DOC_TYPE_HINT_MISSING
+            Gen->>Reg: job_section failed (причина + путь классификации)
+        end
+        CMR-->>Gen: doc_type + онтологические поля (из resolved_hints)
         Gen->>ME: extract_metadata_candidates(section)
-        Gen->>OM: normalize_*(candidates)
-        OM-->>Gen: normalized + warnings
+        Gen->>OM: validate(hints + candidates)
+        OM-->>Gen: warnings
         Gen->>PTR: render(doc_type, context)
         PTR-->>Gen: rendered prompt
         alt LLM-режим
             Gen->>LLM: generate_structured(prompt, RAGCardDraft)
-            LLM-->>Gen: draft (front_matter, body_markdown, confidence)
+            LLM-->>Gen: draft (title, body_markdown, поля типа карточки, content-confidence)
         else Fallback
             Gen->>Gen: RAGCardFallbackGenerator.generate(section)
         end
@@ -629,6 +753,8 @@ KnowledgeBaseSetupPage
 
 **LowConfidenceCardsPanel** — banner с CTA «Перейти к ручному review (SETUP-06)»; показывает `doc_id`, `title`, `confidence_level`, `review_required_reason`.
 
+**RAGCardGenerationErrorsPanel** (целевое, ADR-HTC-10) — секции с `DOC_TYPE_HINT_MISSING` выделяются отдельной группой «Требует настройки дерева»: показывают путь классификации, причину «taxonomy node has no doc_type_hint» и ссылку на узел в шаге «Библиотека классификаторов» (SETUP-13); число таких секций выводится в счётчиках job (AC-60). `RAGCardPreviewDrawer → Source Trace` показывает путь классификации и узел-источник каждого значения `resolved_hints`.
+
 ### 10.2. Клиентская логика
 
 **Валидации:**
@@ -673,8 +799,9 @@ KnowledgeBaseSetupPage
 - `regenerate_card(setup_job_id, doc_id, *, requested_by, reason, override_doc_type)` — повторная генерация одной карточки.
 
 **Новые детерминированные компоненты** (`src/fe_bot/setup/rag_card_generation/`):
-- `DocTypeDetector` — rule-based маппинг `section_type → doc_type`;
-- `MetadataExtractor` — deterministic extraction без LLM;
+- `ClassificationMetadataResolver` — *целевой, в коде нет*: детерминированно выводит `doc_type` и онтологические поля из `classifier_result` (пересчёт `resolved_hints` по пути и текущему дереву SETUP-13); заменяет `DocTypeDetector`;
+- `DocTypeDetector` — реализован: rule-based маппинг `section_type → doc_type`. При классификации по дереву SETUP-13 `section_type` всегда `OTHER`, поэтому детектор не даёт сигнала; в целевом дизайне при наличии `classifier_result` не вызывается, остаётся лишь переходным fallback ([ADR-HTC-10, вопрос 1](../../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md#открытые-вопросы));
+- `MetadataExtractor` — deterministic extraction без LLM: содержательные кандидаты (`title`, `retrieval_tags`, `required_input_fields`, `output_fields`, `feature_tables`); классификацией не занимается;
 - `OntologyMapper` — нормализация по `ontology_v1.yaml`;
 - `PromptTemplateRegistry` — загрузка и render шаблонов из `prompts/rag_card/`;
 - `DocIdGenerator` — deterministic `doc_id` с conflict resolution;
@@ -830,7 +957,7 @@ rag_card_artifacts (
 **Правила доверия к LLM:**
 - BR-08. LLM output не принимается без schema validation.
 - BR-09. Ontology values имеют приоритет над LLM-предложениями.
-- BR-10. Deterministic metadata extraction имеет приоритет над LLM metadata при более высоком confidence.
+- BR-10. Детерминированные источники (хинты классификации, `MetadataExtractor`) имеют приоритет над LLM metadata безусловно, а не «при более высоком confidence». LLM не определяет `doc_type` и онтологические поля; она производит содержание и может лишь уточнять `retrieval_tags` (см. [metadata-schema.md §6.4–6.5](../../06-rag/metadata-schema.md)).
 
 **Правила статусов:**
 - BR-11. `draft`/`review_required` карточки не индексируются в Vector DB.
@@ -849,6 +976,17 @@ rag_card_artifacts (
 **Правила prompt safety:**
 - BR-19. Prompt template структурно изолирует source content: `<system>...</system>` отделён от `<user_content>`.
 - BR-20. `MarkdownBuilder` sanitizes body: удаляет HTML-комментарии, `<script>`, `system:`-like spans.
+
+**Правила классификации и хинтов** ([ADR-HTC-10](../../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md)):
+- BR-21. Смысловая классификация секции выполняется один раз — на шаге 3 (SETUP-13). SETUP-05 её не повторяет и не переопределяет.
+- BR-22. `doc_type` и `domain`, `task_type`, `data_source`, `entity_type`, `phase`, `agent_targets` определяются из `resolved_hints` без LLM. `section_type` для этого не используется.
+- BR-23. Нет `doc_type_hint` по пути классификации (или нет `classifier_result`) → LLM не вызывается, карточка не создаётся, job-секция `failed` с `DOC_TYPE_HINT_MISSING` и причиной «taxonomy node has no doc_type_hint».
+- BR-24. `doc_type_hint` вне 7 поддерживаемых генерацией типов → `INVALID_DOC_TYPE` с причиной; тип не подменяется.
+- BR-25. Нет `domain_hint` или `phase_hint` (обязательные поля, [metadata-schema.md §3](../../06-rag/metadata-schema.md)) → карточка создаётся со статусом `metadata_incomplete`; причина перечисляет недостающие поля.
+- BR-26. Остальные хинты (`task_type`, `data_source`, `entity_type`, `agent_targets`) опциональны; их отсутствие даёт `WARNING_OPTIONAL_FIELD_MISSING` и не блокирует карточку.
+- BR-27. Ответ LLM не может изменить `doc_type` и онтологические поля: при расхождении сохраняется значение хинта.
+- BR-28. Уверенность классификации (`classifier_result.overall_confidence`) и content-confidence LLM — разные величины; в `confidence_level` карточки учитываются обе, но не смешиваются в одно поле до расчёта.
+- BR-29. Происхождение metadata трассируемо: в front matter пишутся `classifier_path` и `classifier_tree_version`; `resolved_hints.sources` указывает узел, давший каждое значение.
 
 ---
 
@@ -874,11 +1012,12 @@ rag_card_artifacts (
 
 | Источник | Что предоставляет |
 | --- | --- |
-| Parsed Section Registry | `ParsedSectionDTO` с `normalized_text`, `structural_payload`, `section_type` |
+| Parsed Section Registry | `ParsedSectionDTO` с `normalized_text`, `structural_payload`, `classifier_result` (путь классификации); `section_type` для определения `doc_type` не используется |
+| Classifier Library ([SETUP-13](SETUP-13-classifier-library.md)) | Дерево классов: хинты узлов и версия дерева для пересчёта `resolved_hints` |
 | Source Registry | `source_document_id`, filename, lineage |
 | Ontology Registry (`ontology_v1.yaml`) | canonical enum values для domain, task_type, data_source, entity_type, phase, agent_targets; синонимы |
 | Prompt Template Registry (`prompts/rag_card/*.txt`) | шаблоны для 7 `doc_type` |
-| LLM Gateway / Ollama | structured output (front_matter, body_markdown, confidence, warnings) |
+| LLM Gateway / Ollama | structured output: содержание карточки (`title`, `body_markdown`, поля типа карточки, уточняющие `retrieval_tags`), content-confidence, warnings |
 | `RAGCardFallbackGenerator` | rule-based карточка при недоступности LLM |
 
 ### 13.3. Связь с ontology v1
@@ -895,6 +1034,8 @@ rag_card_artifacts (
 | `agent_targets` | 16 агентов из AGENTS.md: `TaskDiscoveryAgent`, `DataProfilingAgent`, `FeatureSynthesisAgent`, `FeatureCriticAgent`, ... |
 
 Неизвестные значения порождают `WARNING_ONTOLOGY_UNKNOWN_TERM`, не errors. Карточка с `domain = custom` автоматически помечается `review_required`.
+
+В целевом дизайне значения этих полей приходят из metadata-хинтов узлов дерева ([SETUP-13 §8](SETUP-13-classifier-library.md#8-metadata-хинты-узлов)), а не из ответа LLM; онтология остаётся справочником допустимых значений, по которому хинты проверяются и при сохранении узла, и при генерации карточки.
 
 ---
 
@@ -1058,11 +1199,15 @@ rag_card_artifacts (
     "entity_type": ["sensor"],
     "phase": ["feature_synthesis", "validation"],
     "agent_targets": ["FeatureSynthesisAgent", "FeatureCriticAgent"],
-    "retrieval_tags": ["sensor", "analytics", "uptime", "detection_probability"]
+    "retrieval_tags": ["sensor", "analytics", "uptime", "detection_probability"],
+    "classifier_path": ["Аналитика", "Оценивание"],
+    "classifier_tree_version": "1.0.3"
   },
   "metadata_schema_version": "rag_metadata_v1"
 }
 ```
+
+Поля `classifier_path` (имена узлов пути классификации) и `classifier_tree_version` — *целевые*, опциональные (добавление опционального поля не требует bump `rag_metadata_v1`, см. [metadata-schema.md §2](../../06-rag/metadata-schema.md)); значения в примере иллюстративны. Значения `doc_type`, `domain`, `task_type`, `data_source`, `entity_type`, `phase`, `agent_targets` приходят из `resolved_hints`, остальное — из содержания (LLM) и `MetadataExtractor`.
 
 **DTO-62: RAGCardMarkdownDTO**
 
@@ -1287,7 +1432,8 @@ RAGCard (DTO-66)
 | `LLM_GATEWAY_UNAVAILABLE` | LLM Gateway недоступен |
 | `LLM_TIMEOUT` | Timeout LLM-запроса |
 | `INVALID_LLM_OUTPUT` | LLM вернула невалидный JSON или схему |
-| `INVALID_DOC_TYPE` | Неизвестный `doc_type` в output |
+| `INVALID_DOC_TYPE` | `doc_type` из хинта не входит в поддерживаемые генерацией типы или в `DocType` |
+| `DOC_TYPE_HINT_MISSING` | Целевой, в `RAGCardGenerationErrorCode` пока нет. По пути классификации нет `doc_type_hint` либо у секции нет `classifier_result`; LLM не вызывалась (N11) |
 | `DOC_ID_CONFLICT` | Не удалось разрешить конфликт `doc_id` |
 | `CARD_BODY_EMPTY` | Body карточки пустое |
 | `FRONT_MATTER_INVALID` | YAML front matter невалиден |
@@ -1329,14 +1475,14 @@ RAGCard (DTO-66)
 
 ### AC-10..17. Генерация карточек
 
-- **AC-10.** Для каждой section определяется `target_doc_type` через `DocTypeDetector`; значение из допустимого enum `ontology_v1.yaml`.
+- **AC-10.** Для каждой section определяется `target_doc_type` через `ClassificationMetadataResolver` из `doc_type_hint` (`classifier_result.resolved_hints`); значение из допустимого enum `ontology_v1.yaml`. *(До реализации хинтов тест проверяет прежний `DocTypeDetector`.)*
 - **AC-11.** `doc_id` генерируется детерминированно по схеме `{doc_type_short}.{slug(title)}.v{N}`.
 - **AC-12.** Каждая карточка содержит YAML front matter с required fields: `doc_id`, `doc_type`, `title`, `version`, `status`, `source_files`, `source_sections`.
 - **AC-13.** Каждая карточка содержит непустой Markdown body.
 - **AC-14.** Каждая карточка имеет `source_document_id`, привязанный к исходному документу.
 - **AC-15.** Каждая карточка имеет `primary_source_section_id`, привязанный к parsed section.
 - **AC-16.** Карточки с пустым `body_markdown` (менее 20 символов) получают `status=body_empty` и не переходят к следующему этапу.
-- **AC-17.** Карточки с `doc_type`, не входящим в допустимый enum, получают `error_code=INVALID_DOC_TYPE`.
+- **AC-17.** Секции, у которых `doc_type` из хинта не входит в допустимый enum или в поддерживаемые генерацией типы, получают `error_code=INVALID_DOC_TYPE` с читаемой причиной.
 
 ### AC-18..22. Metadata и ontology
 
@@ -1393,6 +1539,20 @@ RAGCard (DTO-66)
 - **AC-50.** При завершении job публикуется `RAGCardGenerationJobCompletedEvent` или `PartialSuccessEvent`.
 - **AC-51.** Audit Service фиксирует `RAG_CARD_GENERATION_TRIGGERED`, `RAG_CARD_GENERATED` (per card), `RAG_CARD_REGENERATE_TRIGGERED`, `RAG_CARD_REVIEW_REQUIRED` с `actor_id`, `target_type="rag_card"`, `target_id=doc_id`, `setup_job_id`.
 
+### AC-52..60. Классификация и хинты
+
+*Критерии целевого дизайна ([ADR-HTC-10](../../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md)); в коде и тестах пока не реализованы. Все — детерминированные, без обращения к LLM, кроме AC-53.*
+
+- **AC-52.** Для секции с `classifier_result` `doc_type` и онтологические поля карточки (`domain`, `task_type`, `data_source`, `entity_type`, `phase`, `agent_targets`) равны `resolved_hints`, пересчитанным по `classifier_result.path` и текущей версии дерева; LLM для их определения не вызывается.
+- **AC-53.** Промпт LLM не просит вернуть `doc_type` и онтологические поля и содержит классификацию (путь, `doc_type`, онтологические поля) как контекст только для чтения; ответ LLM, содержащий эти поля, не меняет итоговую metadata (BR-27).
+- **AC-54.** Если по пути нет `doc_type_hint`, LLM не вызывается, карточка не создаётся, job-секция получает `status=failed`, `error_code=DOC_TYPE_HINT_MISSING`, `error_message` содержит «taxonomy node has no doc_type_hint» и путь классификации; секция отображается в UI как «требует настройки дерева».
+- **AC-55.** Если у секции нет `classifier_result`, результат тот же, с причиной «section has no classifier_result» (при отключённом переходном fallback).
+- **AC-56.** Если нет `domain_hint` или `phase_hint`, карточка создаётся со статусом `metadata_incomplete`; `review_required_reason` перечисляет недостающие поля.
+- **AC-57.** После правки хинта в SETUP-13 повторная генерация секции создаёт карточку без повторного парсинга и повторной классификации.
+- **AC-58.** В front matter карточки записаны `classifier_path` и `classifier_tree_version`.
+- **AC-59.** Две секции с одинаковым путём классификации и версией дерева получают одинаковые `doc_type` и онтологические поля.
+- **AC-60.** Метрика покрытия: доля секций, завершившихся `DOC_TYPE_HINT_MISSING`, выводится в `CardGenerationReportDTO` и в UI job.
+
 ---
 
 ## 20. Definition of Done
@@ -1426,7 +1586,8 @@ RAGCard (DTO-66)
 | Компонент | Что проверяется | Целевой файл |
 | --- | --- | --- |
 | `RAGCardGenerationJob` | state machine transitions; counters; http_status_for | `tests/unit/test_rag_card_generation_job_schema.py` |
-| `DocTypeDetector` | 7 прямых маппингов; fallback; INVALID | `tests/unit/test_doc_type_detector.py` |
+| `DocTypeDetector` | 7 прямых маппингов; fallback; INVALID (реализован; в целевом дизайне — переходный fallback) | `tests/unit/test_doc_type_detector.py` |
+| `ClassificationMetadataResolver` *(планируется)* | `doc_type` и онтологические поля из `resolved_hints` (AC-52); нет `doc_type_hint` → `DOC_TYPE_HINT_MISSING` (AC-54, AC-55); нет `domain_hint`/`phase_hint` → `metadata_incomplete` (AC-56); `doc_type_hint` вне поддерживаемых → `INVALID_DOC_TYPE` (AC-17); детерминизм (AC-59) | `tests/unit/test_classification_metadata_resolver.py` |
 | `MetadataExtractor` | каждый extractor; roundtrip для analytics section | `tests/unit/test_metadata_extractor.py` |
 | `OntologyMapper` | normalize для каждого поля; неизвестное значение → warning; синонимы | `tests/unit/test_ontology_mapper.py` |
 | `PromptTemplateRegistry` | render для каждого doc_type; missing template raises; injection protection | `tests/unit/test_prompt_template_registry.py` |
@@ -1519,7 +1680,7 @@ RAGCard (DTO-66)
 
 ### 22.2. Допущения
 
-- SETUP-04 создаёт `ParsedSectionDTO` с `normalized_text` и `section_type`.
+- SETUP-04 создаёт `ParsedSectionDTO` с `normalized_text`, `section_type` и (при классификации по дереву SETUP-13) `classifier_result`; в целевом дизайне результат несёт разрешённые metadata-хинты.
 - Source Registry содержит `source_document_id` и filename.
 - `ontology_v1.yaml` доступен и загружен; prompt templates существуют в `prompts/rag_card/`.
 - Локальная LLM/Ollama доступна или включён template fallback.
@@ -1541,6 +1702,9 @@ RAGCard (DTO-66)
 | Запретить ли regenerate для approved карточек | Да, требуется отдельный permission |
 | Включать ли `relationship_card` в MVP | Нет |
 | При `partial_success`: продолжать или ждать | UI показывает обе опции; default — продолжать |
+| Кто определяет `doc_type` и онтологические поля | Классификация шага 3 через metadata-хинты узлов дерева SETUP-13; LLM — только содержание (ADR-HTC-10, 2026-11-06) |
+| Что делать, если у ветки дерева нет `doc_type_hint` | Явный отказ `DOC_TYPE_HINT_MISSING`, карточка не создаётся; исправляется хинтом на узле (ADR-HTC-10, 2026-11-06) |
+| Откуда берутся хинты при повторной генерации | Пересчёт по сохранённому пути и текущей версии дерева, без повторной классификации (ADR-HTC-10, 2026-11-06) |
 
 ### 22.4. Открытые вопросы (требуют ответа до S3/S4)
 
@@ -1549,11 +1713,17 @@ RAGCard (DTO-66)
 | Минимальная длина Markdown body для каждого `doc_type` | RAG Admin | до S3 |
 | Формат YAML front matter для `feature_pattern_card` (formula/inputs vs free text) | ML Engineer | до S2 |
 | Нужен ли `ontology_v1.yaml` в синонимах для agent_targets | RAG Architect | до A4 (закрыто в Phase A) |
-| Как обрабатывать sections с `section_type=unknown` при отсутствии heading keywords | Backend Lead | до S2 |
+| ~~Как обрабатывать sections с `section_type=unknown` при отсутствии heading keywords~~ — снят: `section_type` не используется для `doc_type` (ADR-HTC-10), секции без хинта получают `DOC_TYPE_HINT_MISSING` | — | закрыт |
+| Судьба `DocTypeDetector` и `rule_based`-режима: переходный fallback при отсутствии `classifier_result` или удаление ([ADR-HTC-10, вопрос 1](../../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md#открытые-вопросы)) | Backend Lead, RAG Architect | до реализации хинтов |
+| Какие рубрики дерева получают `doc_type_hint` и каким значением (покрытие дерева хинтами) | Предметный эксперт, RAG Architect | до реализации хинтов |
 
 ---
 
 ## 23. Связанные документы и артефакты
+
+### 23.0. Бизнес-требования
+
+- `BR-FR-Setup-051..054` — per-type генерация карточек, полнота metadata, привязка к источнику, confidence scoring (нотация идентификаторов — в [business-requirements.md](../../01-business/business-requirements.md#нотация-идентификаторов)).
 
 ### 23.1. Feature документы
 
@@ -1563,6 +1733,7 @@ RAGCard (DTO-66)
 | [SETUP-02-document-upload.md](SETUP-02-document-upload.md) | Source documents — вход для parsed sections |
 | [SETUP-03-source-registry.md](SETUP-03-source-registry.md) | SourceLifecycleService, lineage model, GENERATED_FROM |
 | [SETUP-04-document-parsing.md](SETUP-04-document-parsing.md) | ParsedSectionDTO — основной вход; структурный аналог для orchestrator |
+| [SETUP-13-classifier-library.md](SETUP-13-classifier-library.md) | Дерево классов и metadata-хинты узлов — источник `doc_type` и онтологических полей ([§8](SETUP-13-classifier-library.md#8-metadata-хинты-узлов)) |
 | SETUP-06-rag-card-review.md | Следующий этап; получает `review_required` карточки |
 | SETUP-07-metadata-validation.md | Получает `ready_for_metadata_validation` карточки |
 | SETUP-08-chunking.md | Получает validated карточки |
@@ -1574,6 +1745,8 @@ RAGCard (DTO-66)
 | [docs/03-architecture/services/data-transfer-objects.md](../../../docs/03-architecture/services/data-transfer-objects.md) | DTO-59..66 — каталог |
 | [docs/03-architecture/services/README.md](../../../docs/03-architecture/services/README.md) | SVC catalog |
 | [docs/03-architecture/services/external-actors-and-systems.md](../../../docs/03-architecture/services/external-actors-and-systems.md) | EXT actors |
+| [ADR-HTC-10](../../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md) | Единственная классификация секции; хинты узлов вместо повторной классификации в шаге 4 |
+| [TD-HTC-004](../../tech-debt/TD-HTC-004-duplicate-classification-in-card-generation.md) | Расхождение кода с этим дизайном |
 | [docs/09-langgraph/setup-graph.md](../../../docs/09-langgraph/setup-graph.md) | Позиция step `rag_card_generation` в SetupGraph |
 
 ### 23.3. RAG документы
@@ -1605,6 +1778,8 @@ RAGCard (DTO-66)
 | `prompts/rag_card/feature_pattern_card.txt` | `feature_pattern_card` |
 | `prompts/rag_card/validation_rule_card.txt` | `validation_rule_card` |
 | `prompts/rag_card/question_template_card.txt` | `question_template_card` |
+
+Шаблоны семи типов подлежат переработке по ADR-HTC-10: из ожидаемого ответа LLM убираются `doc_type`, `domain`, `task_type`, `data_source`, `entity_type`, `phase`, `agent_targets` и блок «Allowed ontology values»; взамен в контекст добавляются путь классификации и разрешённые хинты. Сейчас шаблоны просят LLM вернуть эти поля.
 
 ### 23.6. Операционные артефакты
 

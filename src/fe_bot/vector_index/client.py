@@ -180,8 +180,19 @@ def collection_for_doc_type(doc_type: str) -> str:
     return f"rag_{doc_type}"
 
 
-def make_point(*, chunk: Chunk, embedding: Embedding, doc_type: str) -> VectorPoint:
-    """Конструирует VectorPoint из Chunk + Embedding."""
+def make_point(
+    *,
+    chunk: Chunk,
+    embedding: Embedding,
+    doc_type: str,
+    extra_payload: dict[str, Any] | None = None,
+) -> VectorPoint:
+    """Конструирует VectorPoint из Chunk + Embedding.
+
+    SETUP-12 wiring: ``extra_payload`` (optional) добавляет произвольные
+    поля в payload — обычно taxonomy_path / primary_l0 / bitmap_l0..L2.
+    Не перезаписывает базовые ключи.
+    """
     payload = {
         "doc_id": chunk.doc_id,
         "doc_type": doc_type,
@@ -192,6 +203,9 @@ def make_point(*, chunk: Chunk, embedding: Embedding, doc_type: str) -> VectorPo
         "chunk_text": chunk.chunk_text,
         **chunk.metadata,
     }
+    if extra_payload:
+        for key, value in extra_payload.items():
+            payload.setdefault(key, value)
     return VectorPoint(
         chunk_id=chunk.chunk_id,
         doc_id=chunk.doc_id,

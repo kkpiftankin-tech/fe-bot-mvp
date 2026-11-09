@@ -10,7 +10,6 @@ from schemas.setup.source_document import SourceDocument, SourceDocumentStatus
 
 from fe_bot.setup.parser.exceptions import (
     ParseFailedError,
-    UnsupportedFormatError,
 )
 from fe_bot.setup.parser.service import DocumentParserService
 from fe_bot.setup.parser.text_parsers import (
@@ -86,18 +85,35 @@ class TestJSON:
         assert "[truncated]" in sections[0].raw_text
 
 
-class TestStubs:
-    def test_pdf_unsupported(self) -> None:
-        with pytest.raises(UnsupportedFormatError, match="PDF"):
-            parse_pdf()
+class TestBinaryParsers:
+    """SETUP-04: PDF/DOCX/XLSX теперь делегируют в новые ParserStrategy."""
 
-    def test_docx_unsupported(self) -> None:
-        with pytest.raises(UnsupportedFormatError, match="DOCX"):
-            parse_docx()
+    def test_pdf_broken_raises_parse_failed(self) -> None:
+        with pytest.raises(ParseFailedError):
+            parse_pdf(
+                source_document_id="s",
+                setup_job_id="j",
+                filename="x.pdf",
+                data=b"%PDF-1.4 broken",
+            )
 
-    def test_xlsx_unsupported(self) -> None:
-        with pytest.raises(UnsupportedFormatError, match="XLSX"):
-            parse_xlsx()
+    def test_docx_broken_raises_parse_failed(self) -> None:
+        with pytest.raises(ParseFailedError):
+            parse_docx(
+                source_document_id="s",
+                setup_job_id="j",
+                filename="x.docx",
+                data=b"not a docx",
+            )
+
+    def test_xlsx_broken_raises_parse_failed(self) -> None:
+        with pytest.raises(ParseFailedError):
+            parse_xlsx(
+                source_document_id="s",
+                setup_job_id="j",
+                filename="x.xlsx",
+                data=b"not an xlsx",
+            )
 
 
 # ---------- DocumentParserService ----------
@@ -169,7 +185,7 @@ class TestParserDispatcher:
         sections = svc.parse(doc)
         assert sections[0].section_type == SectionType.SCHEMA
 
-    def test_unsupported_format_marks_failed(
+    def test_broken_pdf_marks_failed(
         self,
         parser_setup: tuple[DocumentParserService, InMemoryArtifactStorage, InMemorySourceRegistry],
     ) -> None:
@@ -181,14 +197,13 @@ class TestParserDispatcher:
             source_document_id=doc.source_document_id,
             filename=doc.filename,
             content_type=doc.content_type,
-            data=b"%PDF-1.4",
+            data=b"%PDF-1.4 broken",
         )
-        with pytest.raises(UnsupportedFormatError):
+        with pytest.raises(ParseFailedError):
             svc.parse(doc)
         updated = registry.get(doc.source_document_id)
         assert updated.status == SourceDocumentStatus.FAILED
         assert updated.error_message is not None
-        assert "PDF" in updated.error_message
 
     def test_parse_failed_marks_failed(
         self,

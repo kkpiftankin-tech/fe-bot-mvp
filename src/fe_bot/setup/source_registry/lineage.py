@@ -63,9 +63,7 @@ class LineageRepository(Protocol):
 
     def counters(self, source_document_id: str) -> LineageCounters: ...
 
-    def get_by_event_id(
-        self, event_id: str
-    ) -> SourceLineageRelation | None: ...
+    def get_by_event_id(self, event_id: str) -> SourceLineageRelation | None: ...
 
 
 class InMemoryLineageRepository:
@@ -75,9 +73,7 @@ class InMemoryLineageRepository:
         # source_document_id -> list of relations
         self._by_source: dict[str, list[SourceLineageRelation]] = {}
         # (source_id, target_type, target_id, relation_type) -> relation
-        self._by_unique_key: dict[
-            tuple[str, str, str, str], SourceLineageRelation
-        ] = {}
+        self._by_unique_key: dict[tuple[str, str, str, str], SourceLineageRelation] = {}
         # event_id -> relation
         self._by_event: dict[str, SourceLineageRelation] = {}
         # (target_type, target_id) -> list of relations (reverse lookup)
@@ -143,9 +139,7 @@ class InMemoryLineageRepository:
                 counts[field] = counts.get(field, 0) + 1
             return LineageCounters(**counts)
 
-    def get_by_event_id(
-        self, event_id: str
-    ) -> SourceLineageRelation | None:
+    def get_by_event_id(self, event_id: str) -> SourceLineageRelation | None:
         with self._lock:
             rel = self._by_event.get(event_id)
             return rel.model_copy(deep=True) if rel else None

@@ -2,11 +2,16 @@
 
 ## Назначение
 
-Построить типизированный профиль данных пользователя: `data_volume`, `data_type` ∈ {`tabular`, `time_series`, `image`, `tensor`, `graph`, `event_log`}, `update_frequency`, `fields[]` (name + dtype + unit + role), `missing_data_strategy`, `class_distribution`, `temporal_importance`.
+Построить типизированный профиль данных пользователя: `data_volume`, `data_type` ∈ {`tabular`, `time_series`, `image`, `tensor`, `graph`, `event_log`, `mixed`}, `update_frequency`, `fields[]` (name + dtype + unit + role), `missing_data_strategy`, `class_distribution`, `temporal_importance`.
 
 ## Бизнес-ценность
 
 И синтез признаков, и генерация синтетических данных зависят от знания формы и семантики входа. Профилирование делает эти допущения явными, пока они не превратились в скрытые баги.
+
+## Вход и выход
+
+- **Вход.** Ответы пользователя с *описанием* данных — объём, поля, пропуски, распределение классов, роль времени (сами данные не загружаются); schema-карточки базы знаний для нормализации имён полей.
+- **Выход.** `DataProfile`: слоты `data_type`, `data_volume`, `fields`, `missing_data_strategy`, `class_distribution`, `temporal_importance` в `ContextMemory`; неизвестные поля сохраняются как `custom_field` с `requires_review`.
 
 ## Пользовательский сценарий
 

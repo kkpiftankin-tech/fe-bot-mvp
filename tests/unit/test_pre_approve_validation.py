@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fe_bot.setup.card_review.validators import PreApproveValidationOrchestrator
 from schemas.rag.ontology import DocType
 from schemas.rag.rag_card import CardStatus, RAGCard
+
+from fe_bot.setup.card_review.validators import PreApproveValidationOrchestrator
 
 
 def _card(**kw: object) -> RAGCard:

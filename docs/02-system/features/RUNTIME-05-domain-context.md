@@ -8,6 +8,11 @@
 
 Синтез признаков, опирающийся на доменный evidence, остаётся физически осмысленным. Без этой фазы у LLM на руках только имена полей, и она быстро дрейфует в безосновательную математику.
 
+## Вход и выход
+
+- **Вход.** Профиль задачи и данных из `ContextMemory`, карточки `domain_profile`, `analytics`, `feature_pattern` из базы знаний, подтверждения пользователя.
+- **Выход.** `DomainContext`: `critical_factors`, `interpretability_requirement`, `domain_constraints`, `temporal_importance`, а также `EvidencePack` для следующих фаз.
+
 ## Пользовательский сценарий
 
 Для radar-примера агент поднимает naval-radar domain profile и предлагает:

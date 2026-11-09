@@ -5,14 +5,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from schemas.rag.rag_card import CardStatus
+from schemas.setup.rag_card_version import RAGCardVersionDTO
 
 from fe_bot.setup.card_review.version_repository import (
     CardVersionAlreadyExistsError,
     CardVersionNotFoundError,
     InMemoryRAGCardVersionRepository,
 )
-from schemas.rag.rag_card import CardStatus
-from schemas.setup.rag_card_version import RAGCardVersionDTO
 
 
 def _now() -> datetime:

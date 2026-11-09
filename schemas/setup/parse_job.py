@@ -57,6 +57,7 @@ class ParseErrorCode(StrEnum):
     NO_PARSEABLE_DOCUMENTS = "NO_PARSEABLE_DOCUMENTS"
     DOCUMENT_NOT_PARSEABLE_STATUS = "DOCUMENT_NOT_PARSEABLE_STATUS"
     PARSE_JOB_ALREADY_RUNNING = "PARSE_JOB_ALREADY_RUNNING"
+    CLASSIFICATION_FAILED = "CLASSIFICATION_FAILED"
 
 
 class ParserStrategy(StrEnum):
@@ -160,6 +161,7 @@ def http_status_for(code: ParseErrorCode) -> int:
         ParseErrorCode.NO_PARSEABLE_DOCUMENTS: 400,
         ParseErrorCode.DOCUMENT_NOT_PARSEABLE_STATUS: 409,
         ParseErrorCode.PARSE_JOB_ALREADY_RUNNING: 409,
+        ParseErrorCode.CLASSIFICATION_FAILED: 500,
     }
     return _MAP[code]
 

@@ -21,7 +21,7 @@
 
 - Перезапустить retrieval с уточнением `domain` / `data_source`.
 - Запросить у пользователя недостающие поля.
-- Если у домена нет `feature_pattern`-карточек — пинать RAG admin запустить [SETUP-05](../02-system/features/SETUP-05-rag-card-generation.md) для нужного семейства.
+- Если у домена нет `feature_pattern`-карточек — пинать RAG admin запустить [SETUP-05](../02-system/features/SETUP-05-rag-cards-generation.md) для нужного семейства.
 - Если регрессия после bump промпта — откатить версию.
 
 ---

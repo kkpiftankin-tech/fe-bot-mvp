@@ -25,6 +25,8 @@ dependencies = [
   "python-multipart>=0.0.9,<1.0",
   # SETUP-04: парсеры документов
   "pypdf>=5.0,<7.0",
+  # SETUP-04: required by pypdf to decrypt AES-encrypted PDFs.
+  "cryptography>=3.1",
   "python-docx>=1.1,<2.0",
   "openpyxl>=3.1,<4.0",
 ]

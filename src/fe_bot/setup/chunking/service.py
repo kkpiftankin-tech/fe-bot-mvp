@@ -74,13 +74,10 @@ def _metadata_to_text(card: RAGCard, metadata: RAGMetadata) -> str:
 class ChunkingService:
     """Превращает (RAGCard, RAGMetadata) в список Chunk-ов."""
 
-    def chunk_card(
-        self, *, card: RAGCard, metadata: RAGMetadata
-    ) -> list[Chunk]:
+    def chunk_card(self, *, card: RAGCard, metadata: RAGMetadata) -> list[Chunk]:
         if card.doc_id != metadata.doc_id:
             raise ValueError(
-                f"Card.doc_id ({card.doc_id!r}) != Metadata.doc_id "
-                f"({metadata.doc_id!r})"
+                f"Card.doc_id ({card.doc_id!r}) != Metadata.doc_id ({metadata.doc_id!r})"
             )
         now = datetime.now(tz=UTC)
         section_title = card.title
@@ -160,9 +157,7 @@ class ChunkingService:
 
         return chunks
 
-    def chunk_many(
-        self, pairs: Iterable[tuple[RAGCard, RAGMetadata]]
-    ) -> list[Chunk]:
+    def chunk_many(self, pairs: Iterable[tuple[RAGCard, RAGMetadata]]) -> list[Chunk]:
         out: list[Chunk] = []
         for card, metadata in pairs:
             out.extend(self.chunk_card(card=card, metadata=metadata))

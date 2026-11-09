@@ -19,13 +19,17 @@ describe("WizardLayout", () => {
     expect(screen.getByText("2. Загрузить документы")).toBeInTheDocument();
     expect(screen.getByText("3. Парсинг документов")).toBeInTheDocument();
     expect(screen.getByText("4. Генерация RAG-карточек")).toBeInTheDocument();
-    expect(screen.getByText("5. Запустить pipeline")).toBeInTheDocument();
-    expect(screen.getByText("6. Проверить карточки")).toBeInTheDocument();
-    expect(screen.getByText("7. Валидация metadata")).toBeInTheDocument();
-    expect(screen.getByText("8. Chunking")).toBeInTheDocument();
-    expect(screen.getByText("9. Retrieval-tests")).toBeInTheDocument();
-    expect(screen.getByText("10. Публикация KB")).toBeInTheDocument();
-    expect(screen.getByText("11. Отчёт")).toBeInTheDocument();
+    expect(screen.getByText("5. Проверить карточки")).toBeInTheDocument();
+    expect(screen.getByText("6. Валидация metadata")).toBeInTheDocument();
+    expect(screen.getByText("7. Chunking + индексация")).toBeInTheDocument();
+    expect(screen.getByText("8. Retrieval-tests")).toBeInTheDocument();
+    expect(screen.getByText("9. Публикация KB")).toBeInTheDocument();
+    expect(screen.getByText("10. Отчёт")).toBeInTheDocument();
+    expect(screen.getByText("11. Библиотека классификаторов")).toBeInTheDocument();
+    // Legacy "Быстрый запуск" больше не часть мастера (см. wizardStore.ts).
+    expect(
+      screen.queryByText(/Быстрый запуск/),
+    ).not.toBeInTheDocument();
   });
 
   it("disables later steps until job is created", async () => {
@@ -39,14 +43,24 @@ describe("WizardLayout", () => {
     expect(useWizardStore.getState().currentStep).toBe("create");
   });
 
+  it("keeps the classifier library step enabled without a setup_job (SETUP-13)", async () => {
+    renderWithProviders(<WizardLayout />);
+    const navClassifiers = screen.getByTestId("nav-classifiers");
+    expect(navClassifiers).not.toHaveClass("disabled");
+
+    const user = userEvent.setup();
+    await user.click(navClassifiers);
+    expect(useWizardStore.getState().currentStep).toBe("classifiers");
+  });
+
   it("allows navigation between steps once job is created", async () => {
     renderWithProviders(<WizardLayout />);
     // Симулируем созданный job через store напрямую.
     useWizardStore.getState().setSetupJobId("sid_xyz", "Demo");
     // Перерисуется автоматически через подписку Zustand.
     const user = userEvent.setup();
-    const navRun = await screen.findByTestId("nav-run");
-    await user.click(navRun);
-    expect(useWizardStore.getState().currentStep).toBe("run");
+    const navReview = await screen.findByTestId("nav-review");
+    await user.click(navReview);
+    expect(useWizardStore.getState().currentStep).toBe("review");
   });
 });

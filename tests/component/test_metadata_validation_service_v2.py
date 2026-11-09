@@ -5,6 +5,16 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from schemas.rag.ontology import (
+    ConfidenceLevel,
+    DocType,
+    Domain,
+    Phase,
+    TaskType,
+)
+from schemas.rag.rag_card import CardStatus, RAGCard
+from schemas.rag.rag_metadata import RAGMetadata
+from schemas.setup.validation_run import ValidationRunStatus
 
 from fe_bot.audit.service import AuditAction, AuditService, InMemoryAuditLog
 from fe_bot.observability.metrics import MetricsRegistry
@@ -26,16 +36,6 @@ from fe_bot.setup.metadata_validation.service import (
     MetadataValidationService,
     ReviewPolicy,
 )
-from schemas.rag.ontology import (
-    ConfidenceLevel,
-    DocType,
-    Domain,
-    Phase,
-    TaskType,
-)
-from schemas.rag.rag_card import CardStatus, RAGCard
-from schemas.rag.rag_metadata import RAGMetadata
-from schemas.setup.validation_run import ValidationRunStatus
 
 pytestmark = pytest.mark.component
 

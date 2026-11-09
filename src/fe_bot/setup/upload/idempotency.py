@@ -44,9 +44,7 @@ class InMemoryIdempotencyCache:
     от cross-job collision (один и тот же upload_request_id от разных клиентов).
     """
 
-    def __init__(
-        self, *, ttl_seconds: float = DEFAULT_IDEMPOTENCY_TTL_SECONDS
-    ) -> None:
+    def __init__(self, *, ttl_seconds: float = DEFAULT_IDEMPOTENCY_TTL_SECONDS) -> None:
         self._store: dict[str, _CacheEntry] = {}
         self._lock = threading.Lock()
         self._ttl = timedelta(seconds=ttl_seconds)

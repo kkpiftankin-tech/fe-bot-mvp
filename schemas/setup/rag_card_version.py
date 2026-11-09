@@ -17,7 +17,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from schemas.rag.rag_card import CardStatus
 
-
 _VERSION_RE = re.compile(r"^(\d+)\.(\d+)$")
 
 

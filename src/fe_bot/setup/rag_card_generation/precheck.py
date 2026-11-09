@@ -7,13 +7,14 @@ Blocking + warning проверки структуры RAGCardDraft до сох�
 Coded outputs:
 - Blocking errors (passed=False):
     DOC_ID_MISSING, DOC_TYPE_INVALID, SOURCE_FILES_EMPTY, SOURCE_SECTIONS_EMPTY,
-    CARD_BODY_EMPTY, FRONT_MATTER_INVALID.
+    CARD_BODY_EMPTY, FRONT_MATTER_INVALID, CARD_BODY_PLACEHOLDER_ECHO.
 - Warnings (passed=True, но review_required eligible):
     RETRIEVAL_TAGS_EMPTY, MISSING_OPTIONAL_METADATA.
 """
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -35,6 +36,15 @@ _MVP_DOC_TYPES = frozenset(
 )
 
 _BODY_MIN_LEN = 20
+
+# Prompt-шаблоны (prompts/rag_card/*.txt) описывают структуру body_markdown
+# через placeholder'ы вида "<one paragraph describing the ML task...>" —
+# английский текст из нескольких слов в угловых скобках. Ни один реальный
+# body_markdown (правило: ВСЁ содержимое на русском) не должен содержать
+# такую конструкцию — это почти наверняка скопированная инструкция, а не
+# контент. Требуем 3+ "слова", чтобы не ловить короткие технические штуки
+# вроде "<Table 1.2>" или "<0.5>".
+_PLACEHOLDER_ECHO_RE = re.compile(r"<(?:[A-Za-z]+[\s,;:'-]+){2,}[A-Za-z][^<>]{0,150}>")
 
 
 class RAGCardDraft(BaseModel):
@@ -106,6 +116,21 @@ class CardValidationPrecheck:
                 _err(
                     "FRONT_MATTER_INVALID",
                     "front_matter missing required keys (doc_id, doc_type)",
+                )
+            )
+        # Слабые модели (llama3.2) иногда копируют placeholder-инструкцию из
+        # структуры body_markdown в prompt'е ("<one paragraph describing...>")
+        # прямо в вывод вместо реального контента — структурно карточка
+        # выглядит валидной (заголовки на месте), поэтому единственный
+        # надёжный сигнал — сам текст плейсхолдера. Blocking, а не warning:
+        # такую карточку легко случайно approve'нуть при беглом ревью, лучше
+        # не сохранять вовсе, чем тихо протащить мусор в базу знаний.
+        if _PLACEHOLDER_ECHO_RE.search(draft.body_markdown):
+            errors.append(
+                _err(
+                    "CARD_BODY_PLACEHOLDER_ECHO",
+                    "body_markdown contains unfilled prompt placeholder(s) "
+                    "instead of generated content",
                 )
             )
 

@@ -10,7 +10,7 @@ export function ValidationStep(): JSX.Element {
   if (!setupJobId) {
     return (
       <div>
-        <h2>Шаг 7. Валидация metadata</h2>
+        <h2>Шаг 6. Валидация metadata</h2>
         <div className="banner banner-warning">
           Сначала создайте setup_job на шаге 1.
         </div>
@@ -20,7 +20,7 @@ export function ValidationStep(): JSX.Element {
 
   return (
     <div>
-      <h2>Шаг 7. Валидация metadata</h2>
+      <h2>Шаг 6. Валидация metadata</h2>
       <p className="text-muted">
         Детерминированная проверка metadata всех approved карточек: required
         fields, ontology, references, uniqueness. Карточки в FAILED возвращаются

@@ -126,6 +126,22 @@ Fallback-цепочка — в [retrieval-policies.md](retrieval-policies.md).
 - допустимо параллельно держать старую active KB на старой онтологии до миграции.
 ```
 
+## 11. У ветки дерева классификатора нет `doc_type_hint`
+
+Секция классифицирована по дереву SETUP-13, но ни на одном узле пути не задан `doc_type_hint` (или у секции нет `classifier_result`). Целевое поведение по [ADR-HTC-10](../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md):
+
+```text
+- НЕ угадывать doc_type (ни по section_type, ни LLM-ом);
+- НЕ вызывать LLM для секции, карточку не создавать;
+- job-секция: status = failed, error_code = DOC_TYPE_HINT_MISSING,
+  причина «taxonomy node has no doc_type_hint» + путь классификации;
+- показать секцию в UI как «требует настройки дерева» со ссылкой на узел;
+- после правки хинта в SETUP-13 повторить генерацию секции (без перепарсинга);
+- вывести в отчёт job долю таких секций (покрытие дерева хинтами).
+```
+
+Если `doc_type` определён, но нет `domain_hint` или `phase_hint`, карточка создаётся со статусом `metadata_incomplete` и причиной, перечисляющей недостающие поля.
+
 ## Матрица failure → действие
 
 | Failure | Кто реагирует | Действие |
@@ -140,6 +156,7 @@ Fallback-цепочка — в [retrieval-policies.md](retrieval-policies.md).
 | invalid agent output | LangGraph Orchestrator | repair loop (max 3) |
 | KB version conflict | KB Registry | reject + new version |
 | ontology drift | Metadata Validator | block + migration |
+| у ветки дерева нет `doc_type_hint` | RAG Card Generator | `DOC_TYPE_HINT_MISSING`, без LLM; хинт на узле (SETUP-13) + повтор |
 
 ## Связанные документы
 

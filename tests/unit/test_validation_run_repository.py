@@ -5,12 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from schemas.setup.validation_run import ValidationRunDTO, ValidationRunStatus
 
 from fe_bot.setup.metadata_validation.run_repository import (
     InMemoryValidationRunRepository,
     ValidationRunNotFoundError,
 )
-from schemas.setup.validation_run import ValidationRunDTO, ValidationRunStatus
 
 
 def _now() -> datetime:

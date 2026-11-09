@@ -135,9 +135,7 @@ class OrphanCleanupService:
         _ = datetime.now(tz=UTC)
         return result
 
-    def _collect_registered_paths(
-        self, setup_job_ids: list[str] | None
-    ) -> list[str]:
+    def _collect_registered_paths(self, setup_job_ids: list[str] | None) -> list[str]:
         """Собирает storage_paths всех документов в registry (включая REMOVED).
 
         Removed documents всё ещё имеют storage_path в registry — но он уже

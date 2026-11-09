@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from schemas.rag.rag_card import CardStatus, InvalidCardTransitionError, _FORWARD_CARD_TRANSITIONS
+from schemas.rag.rag_card import _FORWARD_CARD_TRANSITIONS, CardStatus, InvalidCardTransitionError
 
 
 def _can(from_status: CardStatus, to_status: CardStatus) -> bool:

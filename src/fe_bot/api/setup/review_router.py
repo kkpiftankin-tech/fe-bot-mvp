@@ -55,6 +55,7 @@ from fe_bot.setup.card_registry.service import (
     CardNotFoundError,
     InMemoryRAGCardRegistry,
 )
+from fe_bot.setup.card_review.editor import SystemMetadataReadOnlyError
 from fe_bot.setup.card_review.service import (
     CardHasCriticalValidationErrorsError,
     CardVersionConflictError,
@@ -64,7 +65,6 @@ from fe_bot.setup.card_review.service import (
     RAGCardReviewService,
     ReviewListFilters,
 )
-from fe_bot.setup.card_review.editor import SystemMetadataReadOnlyError
 from fe_bot.setup.orchestrator import SetupOrchestrator
 from fe_bot.setup.repository import JobNotFoundError
 

@@ -17,7 +17,6 @@ import threading
 from collections import deque
 from dataclasses import dataclass
 
-
 _MAX_SAMPLES = 200  # ring buffer per model
 
 

@@ -6,8 +6,6 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-
-from fe_bot.setup.card_registry.service import InMemoryRAGCardRegistry
 from schemas.rag.ontology import (
     ConfidenceLevel,
     DocType,
@@ -17,6 +15,8 @@ from schemas.rag.ontology import (
 )
 from schemas.rag.rag_card import CardStatus, RAGCard
 from schemas.rag.rag_metadata import RAGMetadata
+
+from fe_bot.setup.card_registry.service import InMemoryRAGCardRegistry
 
 pytestmark = pytest.mark.integration
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,74 @@ from fe_bot.setup.parser.strategies import (
 pytestmark = pytest.mark.unit
 
 _FIXTURES = Path(__file__).parent.parent / "fixtures" / "parser"
+
+
+def _make_pdf(pages: list[list[str]]) -> bytes:
+    """Собирает минимальный валидный PDF 1.4 с заданными строками на
+    страницах (по одной строке текста на Tj-вызов, шрифт Helvetica).
+
+    pypdf не умеет генерировать PDF с текстом (только читать/сводить), а
+    reportlab/fpdf не входят в зависимости проекта — поэтому здесь
+    собирается raw PDF byte-syntax напрямую. Используется только тестами
+    PDFParserStrategy (SETUP-04 / T-S04-014 structure-aware rewrite).
+    """
+    objects: list[bytes] = []
+
+    def add(obj: bytes) -> int:
+        objects.append(obj)
+        return len(objects)
+
+    font_id = add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+
+    content_ids: list[int] = []
+    for lines in pages:
+        y = 750
+        parts = [b"BT"]
+        for line in lines:
+            esc = line.replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)")
+            parts.append(b"/F1 12 Tf")
+            parts.append(f"1 0 0 1 72 {y} Tm".encode())
+            parts.append(f"({esc}) Tj".encode())
+            y -= 16
+        parts.append(b"ET")
+        stream = b"\n".join(parts)
+        content_ids.append(
+            add(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
+        )
+
+    pages_placeholder = add(b"PLACEHOLDER")
+    page_ids = [
+        add(
+            b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 612 792] "
+            b"/Resources << /Font << /F1 %d 0 R >> >> /Contents %d 0 R >>"
+            % (pages_placeholder, font_id, content_ids[i])
+        )
+        for i in range(len(pages))
+    ]
+    kids = b" ".join(b"%d 0 R" % pid for pid in page_ids)
+    objects[pages_placeholder - 1] = b"<< /Type /Pages /Kids [ %s ] /Count %d >>" % (
+        kids,
+        len(page_ids),
+    )
+    catalog_id = add(b"<< /Type /Catalog /Pages %d 0 R >>" % pages_placeholder)
+
+    out = io.BytesIO()
+    out.write(b"%PDF-1.4\n")
+    offsets = [0] * (len(objects) + 1)
+    for i, body in enumerate(objects, start=1):
+        offsets[i] = out.tell()
+        out.write(b"%d 0 obj\n" % i)
+        out.write(body)
+        out.write(b"\nendobj\n")
+    xref_offset = out.tell()
+    out.write(b"xref\n0 %d\n" % (len(objects) + 1))
+    out.write(b"0000000000 65535 f \n")
+    for i in range(1, len(objects) + 1):
+        out.write(b"%010d 00000 n \n" % offsets[i])
+    out.write(b"trailer\n<< /Size %d /Root %d 0 R >>\n" % (len(objects) + 1, catalog_id))
+    out.write(b"startxref\n%d\n" % xref_offset)
+    out.write(b"%%EOF")
+    return out.getvalue()
 
 
 # ============================================================
@@ -249,6 +318,127 @@ class TestPDF:
                 parse_job_id="pj_001",
                 filename="bad.pdf",
             )
+
+    def test_pdf_no_headings_falls_back_to_per_page(self) -> None:
+        # Совместимость со старым поведением (T-S04-014 baseline): плоский
+        # PDF без нумерации/ключевых слов — секция на страницу.
+        data = _make_pdf([["Just some flat body text."], ["More flat text here."]])
+        sections = PDFParserStrategy().parse(
+            data=data, source_document_id="src_001", parse_job_id="pj_001", filename="flat.pdf"
+        )
+        assert len(sections) == 2
+        assert sections[0].title == "Page 1"
+        assert sections[1].title == "Page 2"
+        assert sections[0].heading_path == []
+
+    def test_decimal_numbering_builds_heading_hierarchy(self) -> None:
+        data = _make_pdf(
+            [
+                ["1 Introduction", "Top-level chapter body text goes here."],
+                ["1.1 Background", "Nested subsection body text."],
+                ["1.2 Scope", "Another subsection at the same level."],
+                ["2 Methods", "Second top-level chapter body."],
+            ]
+        )
+        sections = PDFParserStrategy().parse(
+            data=data, source_document_id="src_001", parse_job_id="pj_001", filename="numbered.pdf"
+        )
+        titles = [s.title for s in sections]
+        assert "Background" in titles
+        assert "Scope" in titles
+        background = next(s for s in sections if s.title == "Background")
+        scope = next(s for s in sections if s.title == "Scope")
+        # "1 Introduction" — bare-number (без точки), попадает под dedup-риск
+        # и сам по себе не гарантирован, но его ДЕТИ обязаны знать родителя.
+        assert background.heading_path == scope.heading_path
+        assert background.heading_path  # непустой — вложены под "Introduction".
+        assert "Background" in background.raw_text or "Nested subsection" in background.raw_text
+
+    def test_toc_dot_leader_lines_are_not_headings(self) -> None:
+        data = _make_pdf(
+            [
+                [
+                    "x Contents",
+                    "1 Introduction ....................................................1",
+                    "2 Methods .........................................................15",
+                ],
+                ["1 Introduction", "Real chapter body text starts here."],
+            ]
+        )
+        sections = PDFParserStrategy().parse(
+            data=data, source_document_id="src_001", parse_job_id="pj_001", filename="toc.pdf"
+        )
+        titles = [s.title for s in sections]
+        # dot-leader записи из оглавления НЕ должны стать отдельными секциями.
+        assert not any("......." in t for t in titles)
+
+    def test_toc_title_page_tagged_as_zone(self) -> None:
+        data = _make_pdf(
+            [
+                ["Contents", "1 Introduction .............................................1"],
+                ["1 Introduction", "Body text of the introduction chapter."],
+            ]
+        )
+        sections = PDFParserStrategy().parse(
+            data=data, source_document_id="src_001", parse_job_id="pj_001", filename="toc2.pdf"
+        )
+        toc_sections = [s for s in sections if s.structural_payload.get("zone") == "toc"]
+        assert len(toc_sections) == 1
+        assert toc_sections[0].confidence < 0.5
+
+    def test_references_heading_tagged_as_zone(self) -> None:
+        data = _make_pdf(
+            [
+                ["1 Introduction", "Body text of the introduction."],
+                ["References", "A. Author, Some Paper, 2020."],
+            ]
+        )
+        sections = PDFParserStrategy().parse(
+            data=data, source_document_id="src_001", parse_job_id="pj_001", filename="refs.pdf"
+        )
+        refs = [s for s in sections if s.structural_payload.get("zone") == "references"]
+        assert len(refs) == 1
+        assert refs[0].title == "References"
+        assert refs[0].confidence < 0.5
+
+    def test_chapter_keyword_heading_detected(self) -> None:
+        data = _make_pdf(
+            [
+                ["Chapter 1 Overview", "Body of the overview chapter."],
+                ["Chapter 2 Details", "Body of the details chapter."],
+            ]
+        )
+        sections = PDFParserStrategy().parse(
+            data=data, source_document_id="src_001", parse_job_id="pj_001", filename="chapters.pdf"
+        )
+        titles = [s.title for s in sections]
+        assert "Overview" in titles
+        assert "Details" in titles
+
+    def test_repeated_running_header_is_dropped(self) -> None:
+        # "N Title" без подуровня, повторяющийся дословно на каждой странице,
+        # — это running header, а не серия отдельных глав; должен быть
+        # отброшен целиком (реальный кейс: Handbook of Multisensor Data
+        # Fusion, где "N Book Title" печатается почти на каждой странице).
+        running_header = "Some Book Title"
+        data = _make_pdf(
+            [
+                [f"1 {running_header}", "Page one body text."],
+                [f"2 {running_header}", "Page two body text."],
+                [f"3 {running_header}", "Page three body text."],
+                ["1.1 Real Subsection", "Real nested content."],
+            ]
+        )
+        sections = PDFParserStrategy().parse(
+            data=data, source_document_id="src_001", parse_job_id="pj_001", filename="header.pdf"
+        )
+        assert running_header not in [s.title for s in sections]
+        # Реальный контент со страниц не потерян — просто без heading-обёртки.
+        joined = "".join(s.raw_text for s in sections)
+        assert "Page one body text." in joined
+        assert "Page two body text." in joined
+        titles = [s.title for s in sections]
+        assert "Real Subsection" in titles
 
 
 # ============================================================

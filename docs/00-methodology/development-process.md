@@ -2,6 +2,8 @@
 
 Эта страница определяет **порядок**, в котором артефакты появляются в репозитории. Порядок не подлежит обсуждению для нетривиальной работы; именно он держит маленькую LLM, агентов, RAG и код в согласованности.
 
+Что за система строится и что у неё на входе и выходе — в [README.md](README.md) и [system-overview.md](../02-system/system-overview.md). Эта страница отвечает на другой вопрос: *в каком порядке* это строится.
+
 ## Конвейер
 
 ```text
@@ -67,6 +69,7 @@ Business Need
 
 ## Связанные страницы
 
+- [README.md](README.md) — что это за система и как читать документацию
 - [repository-map.md](repository-map.md)
 - [artifact-templates.md](artifact-templates.md)
 - [traceability-rules.md](traceability-rules.md)

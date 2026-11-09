@@ -5,12 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from schemas.setup.chunk_manifest import ChunkingRunDTO, ChunkManifestDTO
 
 from fe_bot.setup.chunking.manifest_repository import (
     ChunkManifestNotFoundError,
     InMemoryChunkManifestRepository,
 )
-from schemas.setup.chunk_manifest import ChunkingRunDTO, ChunkManifestDTO
 
 
 def _now() -> datetime:

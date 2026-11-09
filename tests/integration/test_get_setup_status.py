@@ -79,3 +79,43 @@ class TestGetSetupProgress:
     ) -> None:
         resp = client.get("/api/v1/setup/nope/progress", headers=auth_headers)
         assert resp.status_code == 404
+
+
+class TestProgressConsistencyAfterParse:
+    """GET /setup/{id} и GET /setup/jobs должны показывать ОДИНАКОВЫЙ
+    progress_percent для одного и того же job'а. Было: list корректно
+    "подсказывал" 25% для setup_job, застрявшего в files_uploaded после
+    завершённого parse_job (auto-sync не сработал), а единичный GET
+    показывал 5% — оба читают один и тот же job, разница была только в
+    том, что list учитывал статус parse_job'а, а единичный GET — нет."""
+
+    def test_get_and_list_agree_when_setup_job_status_lags_parse(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        sid = _create_job(client, auth_headers)
+        client.post(
+            f"/api/v1/setup/{sid}/documents",
+            files={"files": ("doc.md", b"# Title\n\nbody text", "text/markdown")},
+            headers=auth_headers,
+        )
+        pj_resp = client.post(
+            f"/api/v1/setup/{sid}/parse-jobs", json={}, headers=auth_headers
+        )
+        assert pj_resp.status_code == 201, pj_resp.text
+        pj_id = pj_resp.json()["parse_job_id"]
+        run_resp = client.post(
+            f"/api/v1/setup/{sid}/parse-jobs/{pj_id}/run", headers=auth_headers
+        )
+        assert run_resp.status_code == 200, run_resp.text
+        assert run_resp.json()["status"] == "completed"
+
+        get_resp = client.get(f"/api/v1/setup/{sid}", headers=auth_headers)
+        list_resp = client.get("/api/v1/setup/jobs", headers=auth_headers)
+        get_progress = get_resp.json()["progress_percent"]
+        list_item = next(
+            i for i in list_resp.json()["items"] if i["setup_job_id"] == sid
+        )
+        assert get_progress == list_item["progress_percent"]
+        # Реальный баг был именно в этом: GET показывал 5.0, list — 25.0,
+        # для одного и того же полностью распарсенного документа.
+        assert get_progress >= 25.0

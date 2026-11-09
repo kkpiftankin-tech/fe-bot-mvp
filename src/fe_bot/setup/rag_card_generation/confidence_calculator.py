@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 
 from schemas.setup.rag_card_generation_job_section import CardConfidenceLevel
 from schemas.setup.rag_card_generation_report import CardValidationReportDTO
+from schemas.taxonomy.state import ClassificationState
 
 from fe_bot.setup.rag_card_generation.llm_adapter import LLMGenerationResult
 from fe_bot.setup.rag_card_generation.ontology_mapper import OntologyWarning
@@ -33,6 +34,18 @@ _PENALTY_PRECHECK_FAILED = 0.5
 _PENALTY_PER_ONTOLOGY_WARNING = 0.15
 _PENALTY_PER_EXTRA_ATTEMPT = 0.2
 _PENALTY_FALLBACK = 0.5
+
+# SETUP-12 / T-S12-053: penalty за недозавершённую классификацию parser'а.
+# unknown_at_level=0 → -0.3 (классификация полностью провалилась; обычно
+# сюда не доходит — DocTypeDetector отбрасывает раньше через
+# INVALID_DOC_TYPE, но штраф остаётся defensive safety net).
+# unknown_at_level=1 → -0.1 (определён только L0).
+# unknown_at_level=2 → -0.05 (определены L0+L1, не дошли до leaf).
+_PENALTY_PARSER_UNKNOWN_AT_LEVEL: dict[int, float] = {
+    0: 0.30,
+    1: 0.10,
+    2: 0.05,
+}
 
 
 @dataclass(slots=True)
@@ -53,6 +66,7 @@ class ConfidenceCalculator:
         precheck: CardValidationReportDTO,
         llm_result: LLMGenerationResult,
         ontology_warnings: list[OntologyWarning],
+        parser_classification_state: ClassificationState | None = None,
     ) -> ConfidenceDecision:
         score = 1.0
         reasons: list[str] = []
@@ -76,6 +90,15 @@ class ConfidenceCalculator:
         if llm_result.used_fallback:
             score -= _PENALTY_FALLBACK
             reasons.append("used_fallback_generator")
+
+        # SETUP-12 / T-S12-053: parser classification penalty.
+        if parser_classification_state is not None:
+            unk_level = parser_classification_state.unknown_at_level
+            if unk_level is not None:
+                penalty = _PENALTY_PARSER_UNKNOWN_AT_LEVEL.get(unk_level, 0.0)
+                if penalty > 0.0:
+                    score -= penalty
+                    reasons.append(f"parser_unknown_at_level:{unk_level}")
 
         score = max(0.0, min(1.0, score))
 

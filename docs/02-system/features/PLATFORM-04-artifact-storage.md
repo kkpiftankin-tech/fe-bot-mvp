@@ -8,6 +8,11 @@ Conversation-scoped объектное хранилище (MinIO в локаль
 
 Без scoped-хранилища артефакты протекают между сессиями и становятся audit- и security-обязательством. Download Manager — это также видимое пользователю «вознаграждение» за весь диалог.
 
+## Вход и выход
+
+- **Вход.** Файлы, которые производит система: `X_train.csv`, `y_train.npy`, `features.json`, `pipeline.py`, `metadata.json`, `archive.zip`, отчёты.
+- **Выход.** Conversation-scoped хранилище (MinIO) и Download Manager с time-bound ссылками; просроченная ссылка возвращает `410 Gone`.
+
 ## Пользовательский сценарий
 
 После [RUNTIME-12](RUNTIME-12-export.md) пользователь жмёт **Downloads**. Видит per-conversation: каждый артефакт, его размер, его checksum и кнопку **Download**. Клик стримит файл через time-bound, conversation-scoped URL.

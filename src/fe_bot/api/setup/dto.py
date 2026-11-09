@@ -46,6 +46,50 @@ class SetupJobResponse(BaseModel):
     message: str | None = None
 
 
+class SetupJobListItem(BaseModel):
+    """SETUP-01 UX: элемент списка setup_jobs с pipeline-суммари.
+
+    Расширяет SetupJobResponse полями, полезными для «resume-панели»:
+    - active_parse_job_id: если есть незавершённый parse_job → предлагаем
+      возобновить.
+    - parsed_sections_count: сколько секций уже классифицировано
+      (crash-safety: даже если parsing прервался, эти секции сохранены).
+    - parse_job_status: статус самого свежего parse_job.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    setup_job_id: str
+    user_id: str
+    project_name: str
+    status: SetupJobStatus
+    current_step: str | None
+    progress_percent: float
+    source_documents_count: int
+    error_count: int
+    warning_count: int
+    started_at: datetime | None
+    finished_at: datetime | None
+    knowledge_base_version: str | None
+    active_parse_job_id: str | None = None
+    # SETUP-04 UX: последний parse_job независимо от статуса (в отличие от
+    # active_parse_job_id, который null для уже завершённых) — чтобы
+    # ParsingStep мог показать сохранённые секции при возврате к job'у,
+    # где парсинг уже закончен.
+    latest_parse_job_id: str | None = None
+    parsed_sections_count: int = 0
+    parse_job_status: str | None = None
+
+
+class SetupJobListResponse(BaseModel):
+    """SETUP-01 UX: список setup_jobs пользователя для восстановления."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[SetupJobListItem]
+    total: int
+
+
 class SetupProgressResponse(BaseModel):
     """Ответ GET /api/v1/setup/{id}/progress."""
 

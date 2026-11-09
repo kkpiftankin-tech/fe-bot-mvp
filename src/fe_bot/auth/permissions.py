@@ -65,6 +65,13 @@ class Permission(StrEnum):
     KB_CHUNKING_RUN = "kb.chunking.run"
     KB_CHUNKING_REFRESH = "kb.chunking.refresh"
 
+    # SETUP-12 / T-S12-070: hierarchical taxonomy read.
+    KB_TAXONOMY_READ = "kb.taxonomy.read"
+
+    # SETUP-13: classifier library (generic tree + per-node prompts).
+    KB_CLASSIFIER_READ = "kb.classifier.read"
+    KB_CLASSIFIER_WRITE = "kb.classifier.write"
+
 
 class Role(StrEnum):
     USER = "user"
@@ -117,6 +124,11 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_CHUNKING_READ,
             Permission.KB_CHUNKING_RUN,
             Permission.KB_CHUNKING_REFRESH,
+            # SETUP-12: read-only доступ к таксономии для отображения дерева.
+            Permission.KB_TAXONOMY_READ,
+            # SETUP-13: полный доступ к библиотеке классификаторов (новый шаг мастера).
+            Permission.KB_CLASSIFIER_READ,
+            Permission.KB_CLASSIFIER_WRITE,
         }
     ),
     Role.DOMAIN_EXPERT: frozenset(
@@ -162,6 +174,11 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_CHUNKING_READ,
             Permission.KB_CHUNKING_RUN,
             Permission.KB_CHUNKING_REFRESH,
+            # SETUP-12: read-only доступ к таксономии.
+            Permission.KB_TAXONOMY_READ,
+            # SETUP-13: полный доступ к библиотеке классификаторов.
+            Permission.KB_CLASSIFIER_READ,
+            Permission.KB_CLASSIFIER_WRITE,
         }
     ),
     Role.RAG_ADMIN: frozenset(
@@ -211,6 +228,11 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_CHUNKING_READ,
             Permission.KB_CHUNKING_RUN,
             Permission.KB_CHUNKING_REFRESH,
+            # SETUP-12: read-only доступ к таксономии.
+            Permission.KB_TAXONOMY_READ,
+            # SETUP-13: полный доступ к библиотеке классификаторов.
+            Permission.KB_CLASSIFIER_READ,
+            Permission.KB_CLASSIFIER_WRITE,
         }
     ),
     Role.ADMIN: frozenset(Permission),  # все
@@ -240,6 +262,10 @@ _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.KB_VALIDATION_READ,
             # SETUP-08: auditor — read-only по manifest.
             Permission.KB_CHUNKING_READ,
+            # SETUP-12: read-only доступ к таксономии.
+            Permission.KB_TAXONOMY_READ,
+            # SETUP-13: read-only доступ к библиотеке классификаторов.
+            Permission.KB_CLASSIFIER_READ,
         }
     ),
 }

@@ -17,6 +17,10 @@ PIP    ?= $(PYTHON) -m pip
 VENV   ?= .venv
 COMPOSE ?= docker compose -f infra/compose/docker-compose.yml
 SERVICE ?=
+# rule_based (default) — быстро, без LLM. llm — реальная классификация
+# секций через ClassifierTreeSectionClassifier (SETUP-13 / ADR-HTC-09) и
+# доп. taxonomy-aware doc_type detection; требует доступный Ollama.
+FE_BOT_TAXONOMY_MODE ?= llm
 
 help:
 	@echo "Common targets:"
@@ -92,10 +96,10 @@ typecheck:
 # ----------------------------------------------------------------------------
 
 run-api:
-	$(PYTHON) -m uvicorn fe_bot.api.main:app --host 127.0.0.1 --port 8000
+	PYTHONPATH=src FE_BOT_TAXONOMY_MODE=$(FE_BOT_TAXONOMY_MODE) $(PYTHON) -m uvicorn fe_bot.app:create_app --factory --host 127.0.0.1 --port 8000
 
 run-api-reload:
-	$(PYTHON) -m uvicorn fe_bot.api.main:app --host 127.0.0.1 --port 8000 --reload
+	PYTHONPATH=src FE_BOT_TAXONOMY_MODE=$(FE_BOT_TAXONOMY_MODE) $(PYTHON) -m uvicorn fe_bot.app:create_app --factory --host 127.0.0.1 --port 8000 --reload
 
 # ----------------------------------------------------------------------------
 # Compose stack (see infra/compose/docker-compose.yml for profiles)

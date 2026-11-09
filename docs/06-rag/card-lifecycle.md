@@ -26,13 +26,15 @@ RAG-карточка — основная управляемая единица 
 | `draft` | Карточка создана как черновик; генерация ещё не завершена | `RAGCardGenerationOrchestrator` (начало pipeline) | UI Preview (read-only) |
 | `generated` | Карточка успешно сгенерирована; все required fields заполнены; precheck пройден | `RAGCardGenerationOrchestrator` (после `CardValidationPrecheck.check()`) | UI, `RAGCardRegistry` |
 | `generation_failed` | Ошибка генерации: пустой body, невалидный LLM output после 3 retry, ошибка сохранения artifact | `RAGCardGenerationOrchestrator` (per-section fallback) | UI Errors Panel; RAG Admin для regenerate |
-| `metadata_incomplete` | Required metadata отсутствует: `domain`, `phase`, `retrieval_tags` или другие поля не заполнены | `RAGCardGenerationOrchestrator` (после `OntologyMapper.validate_card_metadata()`) | SETUP-07 Validation Service; UI |
+| `metadata_incomplete` | Required metadata отсутствует: `domain`, `phase`, `retrieval_tags` или другие поля не заполнены. В целевом дизайне ([ADR-HTC-10](../03-architecture/adr/ADR-HTC-10-classification-hints-single-source.md)) типичная причина — у ветки дерева классификатора нет `domain_hint` / `phase_hint`; причина пишется в `review_required_reason` | `RAGCardGenerationOrchestrator` (после `OntologyMapper.validate_card_metadata()`) | SETUP-07 Validation Service; UI |
 | `body_empty` | Markdown body пустой или короче 20 символов | `RAGCardGenerationOrchestrator` (precheck `CARD_BODY_EMPTY`) | UI; auto-retry |
 | `low_confidence` | `confidence_score < confidence_threshold` (дефолт 0.7); карточка создана, но ненадёжна | `ConfidenceCalculator` | UI LowConfidenceCardsPanel |
 | `review_required` | Требуется ручной review: low confidence, warnings, `domain=custom`, `metadata_incomplete` после triage | `RAGCardGenerationOrchestrator` или SETUP-06 Review Service | SETUP-06 Review UI |
 | `ready_for_metadata_validation` | Карточка прошла precheck и review (или review не требовался); передана в SETUP-07 | `RAGCardGenerationOrchestrator` (при `confidence >= threshold` и `precheck.passed`) или SETUP-06 approval | SETUP-07 Metadata Validation Service |
 | `rejected` | Карточка отклонена ревьюером в SETUP-06; не участвует в downstream pipeline | SETUP-06 Review Service | Audit Log; UI (read-only) |
 | `deprecated` | Карточка устарела: опубликована новая версия или admin выполнил deprecation | Admin / RAG Admin (ручной) или SETUP-11 (автоматически при публикации новой KB version) | `RAGCardRegistry` для audit; Vector Indexer (исключение) |
+
+**Секция без карточки.** Если по пути классификации нет `doc_type_hint`, карточка не создаётся вовсе: без `doc_type` нельзя выбрать шаблон промпта и сформировать `doc_id`. Такая секция не получает статуса карточки; её состояние фиксируется на уровне `RAGCardGenerationJobSection` (`failed`, `DOC_TYPE_HINT_MISSING`, причина «taxonomy node has no doc_type_hint»), см. [SETUP-05 N11](../02-system/features/SETUP-05-rag-cards-generation.md). Статус `metadata_incomplete` относится только к карточкам, у которых `doc_type` определён.
 
 **Жёсткие ограничения по использованию:**
 - Карточки в статусах `draft`, `review_required`, `rejected`, `deprecated` НИКОГДА не попадают в active Knowledge Base и не индексируются в Vector DB (SETUP-09 фильтрует их при построении chunk manifest).

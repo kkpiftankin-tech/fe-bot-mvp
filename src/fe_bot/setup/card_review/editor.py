@@ -18,7 +18,6 @@ from typing import Any
 from schemas.rag.rag_card import RAGCard
 from schemas.setup.rag_card_diff import BodyDiff, MetadataFieldDiff, RAGCardDiffDTO
 
-
 # Editable metadata fields (см. spec §10.1 RAGCardMetadataEditor).
 EDITABLE_METADATA_FIELDS: frozenset[str] = frozenset(
     {

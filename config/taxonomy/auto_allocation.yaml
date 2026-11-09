@@ -1,0 +1,98 @@
+# SETUP-12: параметры авто-классификации.
+#
+# Все значения тюнятся по результатам испытаний без code-change.
+# См. docs/02-system/features/SETUP-12-llm-taxonomy-classification.md §1.
+
+# ---------------------------------------------------------------------------
+# Capacity (стартовые ограничения)
+# ---------------------------------------------------------------------------
+
+# Глубина дерева. В MVP — фикс 3. Изменение требует major-bump'а схемы
+# (расширения classification_bitmap > 30 бит).
+max_depth: 3
+
+# Сколько классов на каждом уровне (под каждым parent_path). MVP-cap 10
+# (биты 0..9 в зоне уровня). При исчерпании срабатывает overflow_strategy.
+classes_per_level: 10
+
+# ---------------------------------------------------------------------------
+# Confidence thresholds
+# ---------------------------------------------------------------------------
+
+# Минимальный confidence для установки бита при DecisionKind.EXISTING.
+# Биты с confidence < T_SET записываются в confidence_per_bit, но в
+# bitmap не попадают.
+T_SET: 0.60
+
+# Минимальный confidence для DecisionKind.NEW. Ниже → переинтерпретация
+# как UNKNOWN (cascading-stop).
+MIN_NEW_CLASS_CONF: 0.65
+
+# ---------------------------------------------------------------------------
+# Similarity gates (см. ADR-HTC-04)
+# ---------------------------------------------------------------------------
+
+# Если cosine(emb(new_proposal), emb(existing)) >= SIM_REUSE для какого-то
+# existing — auto-allocator переиспользует существующий бит, новый класс
+# в реестр не вносится.
+SIM_REUSE: 0.85
+
+# Применяется при overflow (10 слотов заняты). Если max sim к существующим
+# >= SIM_FORCE_MERGE — склеиваем с ближайшим (warning в лог).
+# Если max sim < SIM_FORCE_MERGE — всё равно склеиваем с ближайшим,
+# но это уже tracked как "class_overflow" (alert-worthy).
+SIM_FORCE_MERGE: 0.70
+
+# ---------------------------------------------------------------------------
+# Multi-class L0 behaviour
+# ---------------------------------------------------------------------------
+
+# Если у секции несколько L0-бит с близкой confidence, drill идёт только
+# под primary. Если delta (primary_conf - second_conf) < этого порога —
+# секция помечается secondary_drill_candidate (см. TD-HTC-001 / TD-HTC-002).
+multi_class_delta_threshold: 0.15
+
+# ---------------------------------------------------------------------------
+# Overflow strategy
+# ---------------------------------------------------------------------------
+
+# force_merge_to_closest_with_warning — рекомендуемый MVP-вариант:
+#   при заполнении 10 слотов LLM-предложение нового класса всё равно
+#   материализуется как existing-бит ближайшего по similarity слота;
+#   событие фиксируется в metrics + log warning.
+#
+# Альтернативы (требуют code-change):
+# - mark_unknown_with_proposal_queue — для admin-loop'а (отложено в TD-HTC-002)
+# - displace_least_used — risky, ломает историческую интерпретацию
+overflow_strategy: force_merge_to_closest_with_warning
+
+# ---------------------------------------------------------------------------
+# Embedding model
+# ---------------------------------------------------------------------------
+
+# Модель для similarity-gate. Совпадает с эмбеддингом проекта (см.
+# config/embeddings).
+embedding_model: nomic-embed-text
+embedding_dim: 384
+
+# ---------------------------------------------------------------------------
+# LLM
+# ---------------------------------------------------------------------------
+
+# Модель для классификации. Может отличаться от модели генерации карточек.
+llm_model: llama3.2
+llm_temperature: 0.0
+llm_max_attempts_per_level: 3   # gateway-level retry при invalid JSON
+llm_timeout_sec: 60
+
+# ---------------------------------------------------------------------------
+# Versioning
+# ---------------------------------------------------------------------------
+
+# Стартовая версия для bootstrap. Заполняется из seed/taxonomy/v1_0_0.yaml.
+initial_version_id: v1.0.0
+
+# Поведение при auto-allocation:
+# - patch bump (v1.0.0 → v1.0.1) — при первом auto-create.
+# - runtime, без рестарта сервиса.
+auto_bump_policy: patch_on_first_create

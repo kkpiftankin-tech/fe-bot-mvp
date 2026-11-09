@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from schemas.setup.source_document import SourceDocument
+from schemas.setup.source_document import SourceDocument, SourceDocumentStatus
 
 
 class SourceDocumentNotFoundError(LookupError):
@@ -27,9 +27,7 @@ class SourceRegistry(Protocol):
 
     def get(self, source_document_id: str) -> SourceDocument: ...
 
-    def find_by_checksum(
-        self, setup_job_id: str, checksum: str
-    ) -> SourceDocument | None: ...
+    def find_by_checksum(self, setup_job_id: str, checksum: str) -> SourceDocument | None: ...
 
     def list_for_job(self, setup_job_id: str) -> list[SourceDocument]: ...
 
@@ -66,18 +64,14 @@ class InMemorySourceRegistry:
             )
         self._by_id[document.source_document_id] = document.model_copy(deep=True)
         self._by_checksum[key] = document.source_document_id
-        self._order.setdefault(document.setup_job_id, []).append(
-            document.source_document_id
-        )
+        self._order.setdefault(document.setup_job_id, []).append(document.source_document_id)
 
     def get(self, source_document_id: str) -> SourceDocument:
         if source_document_id not in self._by_id:
             raise SourceDocumentNotFoundError(source_document_id)
         return self._by_id[source_document_id].model_copy(deep=True)
 
-    def find_by_checksum(
-        self, setup_job_id: str, checksum: str
-    ) -> SourceDocument | None:
+    def find_by_checksum(self, setup_job_id: str, checksum: str) -> SourceDocument | None:
         existing_id = self._by_checksum.get((setup_job_id, checksum))
         if existing_id is None:
             return None
@@ -124,6 +118,29 @@ class InMemorySourceRegistry:
         self._by_id.clear()
         self._by_checksum.clear()
         self._order.clear()
+
+    # ----- Snapshot persistence (dev-only JSON dump) -----
+
+    def snapshot(self) -> dict[str, object]:
+        return {
+            "documents": {sid: d.model_dump(mode="json") for sid, d in self._by_id.items()},
+            "order": {jid: list(ids) for jid, ids in self._order.items()},
+        }
+
+    def restore(self, data: dict[str, object]) -> None:
+        self.clear()
+        documents = data.get("documents", {})
+        order = data.get("order", {})
+        if isinstance(documents, dict):
+            for sid, raw in documents.items():
+                doc = SourceDocument.model_validate(raw)
+                self._by_id[sid] = doc
+                key = (doc.setup_job_id, doc.checksum)
+                if doc.status != SourceDocumentStatus.REMOVED:
+                    self._by_checksum[key] = sid
+        if isinstance(order, dict):
+            for jid, ids in order.items():
+                self._order[jid] = [i for i in ids if isinstance(i, str)]
 
 
 class DuplicateDocumentError(ValueError):

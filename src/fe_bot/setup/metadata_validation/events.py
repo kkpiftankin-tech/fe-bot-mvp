@@ -7,7 +7,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 EVENT_RUN_STARTED = "validation.run_started"
 EVENT_RUN_COMPLETED = "validation.run_completed"
 EVENT_REPORT_CREATED = "validation.report_created"

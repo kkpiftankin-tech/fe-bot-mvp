@@ -83,3 +83,24 @@ class InMemoryParseJobDocumentRepository:
         with self._lock:
             self._store.clear()
             self._order.clear()
+
+    # ----- Snapshot persistence (dev-only) -----
+
+    def snapshot(self) -> dict[str, object]:
+        with self._lock:
+            return {
+                "documents": {pid: d.model_dump(mode="json") for pid, d in self._store.items()},
+                "order": list(self._order),
+            }
+
+    def restore(self, data: dict[str, object]) -> None:
+        with self._lock:
+            self._store.clear()
+            self._order.clear()
+            documents = data.get("documents", {})
+            order = data.get("order", [])
+            if isinstance(documents, dict):
+                for pid, raw in documents.items():
+                    self._store[pid] = ParseJobDocument.model_validate(raw)
+            if isinstance(order, list):
+                self._order.extend(i for i in order if isinstance(i, str))

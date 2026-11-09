@@ -8,6 +8,11 @@
 
 Весь тезис проекта «маленькая LLM работает» держится на этой фиче. Без типизированных контрактов система была бы цепочкой обменов свободным текстом, в которой каждая ошибка усиливает предыдущую.
 
+## Вход и выход
+
+- **Вход.** Выводы LLM (`ParsedUserInput`, `TaskDiscoveryResult`, `DataProfile`, `DomainContext`, `FeatureCandidateSet`, `ValidationReport`, `GenerationSpec`, `ModelRecommendation`, `ExportManifest`).
+- **Выход.** Валидный Pydantic-объект либо repair-промпт с ошибкой валидатора; потребление невалидированной строки LLM ниже по pipeline запрещено.
+
 ## Пользовательский сценарий
 
 `FeatureSynthesisAgent` возвращает JSON. Слой контрактов парсит его через `FeatureCandidateSet.model_validate`. На успехе оркестратор продвигается. На сбое слой собирает `RepairRequest` со схемой, нарушающим JSON, путём ошибки и переспрашивает агента. После `max_retries` фаза падает чисто с пользовательской ошибкой.

@@ -107,6 +107,42 @@ export function RAGCardPreviewDrawer({
         </p>
       )}
 
+      {details && (() => {
+        // Позиция в структуре исходного документа (T-S05 UX fix): без
+        // этого нет способа проверить, что карточка соответствует своему
+        // месту в документе — виден только opaque source_section_id.
+        const headingPath = details.front_matter.source_heading_path;
+        const sectionTitle = details.front_matter.source_section_title;
+        if (!Array.isArray(headingPath) && !sectionTitle) return null;
+        const pathParts = [
+          ...(Array.isArray(headingPath) ? headingPath.map(String) : []),
+        ];
+        return (
+          <p
+            data-testid="source-structure-summary"
+            style={{
+              marginTop: 4,
+              padding: "6px 10px",
+              background: "#eef6ff",
+              borderRadius: 4,
+              fontSize: 13,
+            }}
+          >
+            📍 Структура документа:{" "}
+            {pathParts.length > 0 ? (
+              <>
+                {pathParts.join(" → ")}
+                {sectionTitle ? ` → "${String(sectionTitle)}"` : ""}
+              </>
+            ) : sectionTitle ? (
+              `"${String(sectionTitle)}" (верхний уровень)`
+            ) : (
+              "—"
+            )}
+          </p>
+        );
+      })()}
+
       <nav role="tablist" className="btn-row" style={{ marginTop: 12 }}>
         {(
           [

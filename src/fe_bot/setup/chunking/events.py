@@ -7,7 +7,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 EVENT_RUN_STARTED = "chunking.run_started"
 EVENT_RUN_COMPLETED = "chunking.run_completed"
 

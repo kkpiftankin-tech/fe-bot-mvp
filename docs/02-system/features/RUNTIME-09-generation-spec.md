@@ -8,12 +8,18 @@
 
 Это межсетевой экран между «LLM предлагает» и «Python генерирует». Гарантирует воспроизводимость, валидацию и трассируемость каждой произведённой строки обратно до spec, который пользователь может прочитать.
 
+## Вход и выход
+
+- **Вход.** `final_features` и профиль данных из `ContextMemory`.
+- **Выход.** `GenerationSpec` — JSON-описание (распределения, target-логика, шум, аномалии, `random_state`, `n_samples`), прошедшее `generation_spec_validator`; строк данных LLM не создаёт.
+
 ## Пользовательский сценарий
 
 Агент собирает spec из `final_features`, `class_distribution`, пользовательских `n_samples`, `noise_level`, `anomaly_rate` и radar-evidence-pack. Пользователь видит preview: target-классы + priors, per-feature распределения (`range ~ uniform(0, 200)`, `rcs ~ exponential(scale=10)`, `snr ~ normal(20, 10)`, …), модель шума, модель аномалий, ожидаемые проверки. Пользователь подтверждает или меняет до запуска генерации.
 
 ## Связанные требования
 
+- BR-FR-091 (минимальные параметры генерации: `n_samples`, `class_distribution`, `random_state`, `noise_level`, `anomaly_rate`, `n_features`, `n_classes`).
 - BR-FR-Gen-001 (эмиссия типизированного spec).
 - BR-FR-Gen-002 (LLM эмитит spec, не строки).
 - Дефолтные эталонные значения: `n_samples = 100000`, `random_state = 42`, `noise_level = 0.01`, `anomaly_rate = 0.02`.

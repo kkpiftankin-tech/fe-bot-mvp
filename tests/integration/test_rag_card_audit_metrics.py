@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Iterable
+from collections.abc import Iterable
 
 import pytest
 from fastapi.testclient import TestClient

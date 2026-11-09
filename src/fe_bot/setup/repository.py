@@ -58,3 +58,13 @@ class InMemoryJobRepository:
     def clear(self) -> None:
         """Для тестов: очистка состояния."""
         self._store.clear()
+
+    # ----- Snapshot persistence (dev-only JSON dump) -----
+
+    def snapshot(self) -> dict[str, object]:
+        return {jid: j.model_dump(mode="json") for jid, j in self._store.items()}
+
+    def restore(self, data: dict[str, object]) -> None:
+        self._store.clear()
+        for jid, raw in data.items():
+            self._store[jid] = RAGSetupJob.model_validate(raw)

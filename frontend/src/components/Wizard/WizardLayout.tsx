@@ -1,5 +1,6 @@
-import { WIZARD_STEPS, useWizardStore } from "../../store/wizardStore";
+import { JOB_INDEPENDENT_STEPS, WIZARD_STEPS, useWizardStore } from "../../store/wizardStore";
 import { ChunkingStep } from "./steps/ChunkingStep";
+import { ClassifierLibraryStep } from "./steps/ClassifierLibraryStep";
 import { CreateJobStep } from "./steps/CreateJobStep";
 import { ParsingStep } from "./steps/ParsingStep";
 import { PublishStep } from "./steps/PublishStep";
@@ -7,7 +8,6 @@ import { RAGCardGenerationStep } from "./steps/RAGCardGenerationStep";
 import { ReportStep } from "./steps/ReportStep";
 import { RetrievalTestsStep } from "./steps/RetrievalTestsStep";
 import { ReviewCardsStep } from "./steps/ReviewCardsStep";
-import { RunPipelineStep } from "./steps/RunPipelineStep";
 import { UploadDocumentsStep } from "./steps/UploadDocumentsStep";
 import { ValidationStep } from "./steps/ValidationStep";
 
@@ -19,8 +19,8 @@ export function WizardLayout(): JSX.Element {
       <nav className="wizard-nav" aria-label="Шаги мастера">
         <ul>
           {WIZARD_STEPS.map((step) => {
-            const isFirst = step.id === "create";
-            const disabled = !isFirst && !setupJobId;
+            const jobIndependent = JOB_INDEPENDENT_STEPS.includes(step.id);
+            const disabled = !jobIndependent && !setupJobId;
             const isActive = currentStep === step.id;
             return (
               <li
@@ -40,13 +40,13 @@ export function WizardLayout(): JSX.Element {
         {currentStep === "upload" && <UploadDocumentsStep />}
         {currentStep === "parse" && <ParsingStep />}
         {currentStep === "rag_card_generation" && <RAGCardGenerationStep />}
-        {currentStep === "run" && <RunPipelineStep />}
         {currentStep === "review" && <ReviewCardsStep />}
         {currentStep === "validation" && <ValidationStep />}
         {currentStep === "chunking" && <ChunkingStep />}
         {currentStep === "tests" && <RetrievalTestsStep />}
         {currentStep === "publish" && <PublishStep />}
         {currentStep === "report" && <ReportStep />}
+        {currentStep === "classifiers" && <ClassifierLibraryStep />}
       </section>
     </div>
   );

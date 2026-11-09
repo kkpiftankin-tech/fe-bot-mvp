@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 
 from schemas.rag.rag_card import RAGCard
 
-
 MIN_BODY_LENGTH = 20
 
 # Опасные теги/паттерны (case-insensitive). XSS защита для preview.

@@ -124,7 +124,13 @@ _parser_service = DocumentParserService(
 from fe_bot.observability.llm_stats import LLMStatsCollector  # noqa: E402
 
 _llm_stats = LLMStatsCollector()
-_llm_gateway = LLMGateway(stats_collector=_llm_stats)
+# Default 60s (LLMGateway.DEFAULT_TIMEOUT_SECONDS) оказался мал для
+# классификации по дереву классификаторов (SETUP-13): после ~371
+# успешно классифицированных секций реального документа один-единственный
+# запрос к Ollama не уложился в 60с и уронил ошибкой весь документ
+# (~2.5 часа работы) — при том, что типичная латентность на этой задаче
+# ~10-25с. 180с даёт запас на редкие всплески без риска зависнуть навечно.
+_llm_gateway = LLMGateway(stats_collector=_llm_stats, timeout_seconds=180.0)
 
 
 def get_llm_stats() -> LLMStatsCollector:
@@ -209,7 +215,176 @@ _parse_job_repo = InMemoryParseJobRepository()
 _parse_doc_repo = InMemoryParseJobDocumentRepository()
 _parsed_section_repo = InMemoryParsedSectionRepository()
 _parse_report_repo = InMemoryDocumentParseReportRepository()
-_section_classifier = SectionClassifier()
+
+
+# SETUP-12 (T-S12-070): taxonomy registry singleton. Bootstrap из seed
+# YAML лениво при первом get_taxonomy_registry() вызове. Размещён до
+# _build_section_classifier, так как используется при llm-mode.
+import logging as _logging_for_taxonomy  # noqa: E402
+
+from fe_bot.taxonomy import (  # noqa: E402
+    TaxonomyRegistry,
+    load_seed_taxonomy,
+)
+from fe_bot.taxonomy.seed_loader import SeedFormatError  # noqa: E402
+
+_logger_taxonomy = _logging_for_taxonomy.getLogger(__name__)
+_taxonomy_registry: TaxonomyRegistry | None = None
+
+
+def _bootstrap_taxonomy_from_seed() -> TaxonomyRegistry:
+    from pathlib import Path
+
+    reg = TaxonomyRegistry()
+    seed_path = (
+        Path(__file__).resolve().parents[3]
+        / "seed"
+        / "taxonomy"
+        / "v1_0_0.yaml"
+    )
+    if not seed_path.exists():
+        _logger_taxonomy.warning(
+            "Taxonomy seed not found at %s; registry stays empty",
+            seed_path,
+        )
+        return reg
+    try:
+        version = load_seed_taxonomy(seed_path)
+        reg.bootstrap_from_version(version)
+    except (FileNotFoundError, SeedFormatError) as exc:
+        _logger_taxonomy.error(
+            "Failed to bootstrap taxonomy registry from %s: %s",
+            seed_path,
+            exc,
+        )
+    return reg
+
+
+def get_taxonomy_registry() -> TaxonomyRegistry:
+    global _taxonomy_registry
+    if _taxonomy_registry is None:
+        _taxonomy_registry = _bootstrap_taxonomy_from_seed()
+    return _taxonomy_registry
+
+
+# SETUP-13 (ADR-HTC-09): classifier library singleton. Repo создаётся
+# eagerly (как остальные module-level repo в этом файле), чтобы
+# register_default_state() мог зарегистрировать его в SnapshotPersister
+# до первого запроса — иначе отредактированное пользователем дерево не
+# переживало бы рестарт backend'а. Seed из seed/classifier/asu_v1.txt
+# заливается сразу; если снапшот на диске содержит сохранённое дерево,
+# persister.load() перезапишет его поверх seed при старте.
+from fe_bot.classifier.import_tree import TreeImportError  # noqa: E402
+from fe_bot.classifier.tree_repository import ClassifierTreeRepository  # noqa: E402
+from fe_bot.classifier.tree_service import ClassifierTreeService  # noqa: E402
+
+_logger_classifier = _logging_for_taxonomy.getLogger(__name__)
+
+
+def _bootstrap_classifier_repo() -> ClassifierTreeRepository:
+    from pathlib import Path
+
+    from fe_bot.classifier.import_tree import parse_ascii_tree
+
+    repo = ClassifierTreeRepository()
+    seed_path = Path(__file__).resolve().parents[3] / "seed" / "classifier" / "asu_v1.txt"
+    if not seed_path.exists():
+        _logger_classifier.warning(
+            "Classifier seed not found at %s; library stays empty", seed_path
+        )
+        return repo
+    try:
+        tree = parse_ascii_tree(seed_path.read_text(encoding="utf-8"))
+        repo.save(tree, make_active=True)
+    except TreeImportError as exc:
+        _logger_classifier.error("Failed to import classifier tree from %s: %s", seed_path, exc)
+    return repo
+
+
+_classifier_repo = _bootstrap_classifier_repo()
+_classifier_service = ClassifierTreeService(_classifier_repo)
+
+
+def get_classifier_service() -> ClassifierTreeService:
+    return _classifier_service
+
+
+# SETUP-13: черновик описания узла через маленькую LLM (см.
+# description_generator.py) — переиспользует тот же shared _llm_gateway
+# singleton, что и остальные LLM-задачи в этом файле.
+from fe_bot.classifier.description_generator import (  # noqa: E402
+    ClassifierDescriptionGenerator,
+)
+
+_classifier_description_generator = ClassifierDescriptionGenerator(llm_gateway=_llm_gateway)
+
+
+def get_classifier_description_generator() -> ClassifierDescriptionGenerator:
+    return _classifier_description_generator
+
+
+# Feature flag для выбора classifier'а.
+# FE_BOT_TAXONOMY_MODE ∈ {rule_based, llm}. Default — rule_based (быстро,
+# без LLM). При llm используется ClassifierTreeSectionClassifier —
+# многоуровневая классификация по дереву SETUP-13 (см.
+# fe_bot.classifier.fragment_classifier) через реальные вызовы Ollama на
+# каждом уровне дерева, поэтому это ощутимо медленнее rule_based и
+# требует доступный Ollama.
+#
+# ADR-HTC-09: SETUP-13 (generic-depth дерево классификаторов) полностью
+# заменяет SETUP-12 (30-bit bitmap taxonomy, fe_bot.taxonomy.*) — код
+# SETUP-12 не удалён (можно понадобится для сверки), но больше не
+# вызывается отсюда.
+def _taxonomy_mode() -> str:
+    import os
+
+    return os.environ.get("FE_BOT_TAXONOMY_MODE", "rule_based").strip().lower()
+
+
+def _build_section_classifier():
+    if _taxonomy_mode() != "llm":
+        return SectionClassifier()
+
+    from fe_bot.classifier.fragment_classifier import FragmentClassifier
+    from fe_bot.classifier.prompt_renderer import ClassifierPromptRenderer
+    from fe_bot.classifier.section_classifier_adapter import (
+        ClassifierTreeSectionClassifier,
+    )
+
+    fragment_classifier = FragmentClassifier(
+        tree_service=_classifier_service,
+        renderer=ClassifierPromptRenderer(),
+        llm_gateway=_llm_gateway,
+    )
+    return ClassifierTreeSectionClassifier(classifier=fragment_classifier)
+
+
+_section_classifier = _build_section_classifier()
+
+
+# SETUP-04 crash-safety: коллбек, вызываемый после каждой
+# классифицированной секции. Wired на _snapshot_persister — сохраняет
+# состояние на disk. app.py устанавливает _snapshot_persister при
+# lifespan startup через set_snapshot_persister().
+_snapshot_persister: object | None = None
+
+
+def set_snapshot_persister(persister: object | None) -> None:
+    """Wire callback от app.py lifespan к parser orchestrator'у."""
+    global _snapshot_persister
+    _snapshot_persister = persister
+
+
+def _persist_incremental_snapshot() -> None:
+    p = _snapshot_persister
+    if p is None:
+        return
+    try:
+        p.save()  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001
+        # Persister сам логирует; здесь тихо игнорируем — не блочим парсинг.
+        pass
+
 
 _document_parser_orchestrator = DocumentParserOrchestrator(
     parse_job_repo=_parse_job_repo,
@@ -223,9 +398,23 @@ _document_parser_orchestrator = DocumentParserOrchestrator(
     event_bus=_event_bus,
     audit_service=_audit_service,
     metrics=_metrics,
+    on_section_progress=_persist_incremental_snapshot,
 )
 
 # SETUP-05 RAG Card Generation singletons (T-S05-025).
+# SETUP-06 (T-S06-007..010): review repositories.
+from fe_bot.setup.card_review.decision_repository import (  # noqa: E402
+    InMemoryReviewDecisionRepository as _ReviewDecisionRepo,
+)
+from fe_bot.setup.card_review.edit_lock_repository import (  # noqa: E402
+    InMemoryEditLockRepository as _EditLockRepo,
+)
+from fe_bot.setup.card_review.log_repository import (  # noqa: E402
+    InMemoryReviewLogRepository as _ReviewLogRepo,
+)
+from fe_bot.setup.card_review.version_repository import (  # noqa: E402
+    InMemoryRAGCardVersionRepository as _CardVersionRepo,
+)
 from fe_bot.setup.rag_card_generation.confidence_calculator import (  # noqa: E402
     ConfidenceCalculator as _ConfidenceCalculator,
 )
@@ -266,20 +455,6 @@ from fe_bot.setup.rag_card_generation.source_link_repository import (  # noqa: E
     InMemoryRAGCardSourceLinkRepository as _RAGSourceLinkRepo,
 )
 
-# SETUP-06 (T-S06-007..010): review repositories.
-from fe_bot.setup.card_review.decision_repository import (  # noqa: E402
-    InMemoryReviewDecisionRepository as _ReviewDecisionRepo,
-)
-from fe_bot.setup.card_review.edit_lock_repository import (  # noqa: E402
-    InMemoryEditLockRepository as _EditLockRepo,
-)
-from fe_bot.setup.card_review.log_repository import (  # noqa: E402
-    InMemoryReviewLogRepository as _ReviewLogRepo,
-)
-from fe_bot.setup.card_review.version_repository import (  # noqa: E402
-    InMemoryRAGCardVersionRepository as _CardVersionRepo,
-)
-
 _rag_card_job_repo = _RAGJobRepo()
 _rag_card_section_repo = _RAGSectionRepo()
 _rag_card_source_link_repo = _RAGSourceLinkRepo()
@@ -292,14 +467,14 @@ _card_version_repo = _CardVersionRepo()
 _edit_lock_repo = _EditLockRepo()
 
 # SETUP-07 (T-S07-010): validation persistence.
+from fe_bot.setup.metadata_validation.metrics import (  # noqa: E402
+    ValidationMetricsCollector as _ValidationMetricsCollector,
+)
 from fe_bot.setup.metadata_validation.report_repository import (  # noqa: E402
     InMemoryValidationReportRepository as _ValidationReportRepo,
 )
 from fe_bot.setup.metadata_validation.run_repository import (  # noqa: E402
     InMemoryValidationRunRepository as _ValidationRunRepo,
-)
-from fe_bot.setup.metadata_validation.metrics import (  # noqa: E402
-    ValidationMetricsCollector as _ValidationMetricsCollector,
 )
 
 _validation_report_repo = _ValidationReportRepo()
@@ -329,7 +504,23 @@ _chunking_orchestrator = _ChunkingOrchestrator(
 )
 _ontology_mapper = _OntologyMapper()
 _prompt_template_registry = _PromptTemplateRegistry()
-_doc_type_detector = _DocTypeDetector()
+
+
+# SETUP-12 wiring: при FE_BOT_TAXONOMY_MODE=llm используем
+# TaxonomyDocTypeDetector. Иначе — legacy rule-based.
+def _build_doc_type_detector():
+    legacy = _DocTypeDetector()
+    if _taxonomy_mode() != "llm":
+        return legacy
+    from fe_bot.taxonomy import TaxonomyDocTypeDetector
+
+    return TaxonomyDocTypeDetector(
+        registry=get_taxonomy_registry(),
+        legacy=legacy,
+    )
+
+
+_doc_type_detector = _build_doc_type_detector()
 _metadata_extractor = _MetadataExtractor()
 _doc_id_generator = _DocIdGenerator()
 _card_validation_precheck = _CardValidationPrecheck()
@@ -400,6 +591,15 @@ _rag_card_orchestrator = _RAGCardOrchestrator(
     event_bus=_event_bus,
     audit_service=_audit_service,
     metrics=_metrics,
+    # SETUP-12 wiring: при llm-mode добавляем taxonomy_registry,
+    # чтобы front_matter содержал taxonomy_path и связанные поля.
+    taxonomy_registry=(
+        get_taxonomy_registry() if _taxonomy_mode() == "llm" else None
+    ),
+    # SETUP-05 crash-safety: тот же persister-коллбек, что у парсера.
+    # После каждой сгенерированной карточки persister.save() пишет
+    # snapshot на disk — аварийная остановка не потеряет прогресс.
+    on_section_progress=_persist_incremental_snapshot,
 )
 
 # SETUP-06 (T-S06-023): rewrite _card_review с полной wiring (depends on

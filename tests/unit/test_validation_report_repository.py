@@ -5,15 +5,15 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-
-from fe_bot.setup.metadata_validation.report_repository import (
-    InMemoryValidationReportRepository,
-    ValidationReportNotFoundError,
-)
 from schemas.setup.validation_report import (
     ValidationReport,
     ValidationStatus,
     ValidationTargetType,
+)
+
+from fe_bot.setup.metadata_validation.report_repository import (
+    InMemoryValidationReportRepository,
+    ValidationReportNotFoundError,
 )
 
 

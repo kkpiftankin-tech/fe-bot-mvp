@@ -115,7 +115,8 @@ class RAGEvaluationService:
             )
             retrieval_result = self._retrieval.search(request)
             per_query = self._build_per_query(
-                gq=gq, retrieved_doc_ids=retrieval_result.doc_ids,
+                gq=gq,
+                retrieved_doc_ids=retrieval_result.doc_ids,
                 error_message=retrieval_result.error_message,
             )
             report.per_query.append(per_query)
@@ -159,14 +160,8 @@ class RAGEvaluationService:
         retrieved_set = set(retrieved_doc_ids)
         relevant_retrieved = expected & retrieved_set
 
-        recall = (
-            len(relevant_retrieved) / len(expected) if expected else 0.0
-        )
-        precision = (
-            len(relevant_retrieved) / len(retrieved_doc_ids)
-            if retrieved_doc_ids
-            else 0.0
-        )
+        recall = len(relevant_retrieved) / len(expected) if expected else 0.0
+        precision = len(relevant_retrieved) / len(retrieved_doc_ids) if retrieved_doc_ids else 0.0
         # Reciprocal rank: 1/rank первого expected doc (1-indexed); 0 если не найден.
         rr = 0.0
         for idx, doc_id in enumerate(retrieved_doc_ids, start=1):

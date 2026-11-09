@@ -126,9 +126,7 @@ class InMemoryArtifactStorage:
         return sorted(p for p in self._store if p.startswith(prefix))
 
     @classmethod
-    def _make_path(
-        cls, setup_job_id: str, source_document_id: str, filename: str
-    ) -> str:
+    def _make_path(cls, setup_job_id: str, source_document_id: str, filename: str) -> str:
         # Path layout совпадает с MinIO layout из INF-003.
         safe_name = filename.replace("/", "_").replace("\\", "_")
         return f"s3://{cls.BUCKET}/{setup_job_id}/{source_document_id}/{safe_name}"
@@ -136,3 +134,34 @@ class InMemoryArtifactStorage:
     def clear(self) -> None:
         """Для тестов."""
         self._store.clear()
+
+    # ----- Snapshot persistence (dev-only) -----
+
+    def snapshot(self) -> dict[str, object]:
+        """Метаданные blob'ов (без bytes — байты идут отдельно через all_blobs())."""
+        return {
+            path: {
+                "content_type": obj.content_type,
+                "size_bytes": obj.size_bytes,
+                "checksum": obj.checksum,
+            }
+            for path, obj in self._store.items()
+        }
+
+    def all_blobs(self) -> dict[str, bytes]:
+        return {path: obj.data for path, obj in self._store.items()}
+
+    def restore(self, meta: dict[str, object], blobs: dict[str, bytes]) -> None:
+        self._store.clear()
+        for path, raw in meta.items():
+            if not isinstance(raw, dict):
+                continue
+            blob = blobs.get(path)
+            if blob is None:
+                continue
+            self._store[path] = StoredObject(
+                data=blob,
+                content_type=str(raw.get("content_type", "application/octet-stream")),
+                size_bytes=int(raw.get("size_bytes", len(blob))),
+                checksum=str(raw.get("checksum", _sha256(blob))),
+            )

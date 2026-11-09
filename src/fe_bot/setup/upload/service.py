@@ -72,9 +72,7 @@ class JobNotAcceptingUploadsError(ValueError):
         )
 
 
-_UPLOAD_ALLOWED_STATUSES = frozenset(
-    {SetupJobStatus.DRAFT, SetupJobStatus.FILES_UPLOADED}
-)
+_UPLOAD_ALLOWED_STATUSES = frozenset({SetupJobStatus.DRAFT, SetupJobStatus.FILES_UPLOADED})
 
 
 class DocumentUploadService:
@@ -485,9 +483,7 @@ class DocumentUploadService:
                 },
             )
         self._inc("upload_files_total", labels={"outcome": "duplicate"})
-        self._inc(
-            "upload_bytes_total", labels={"outcome": "duplicate"}, value=float(size_bytes)
-        )
+        self._inc("upload_bytes_total", labels={"outcome": "duplicate"}, value=float(size_bytes))
 
     def _emit_replaced(
         self,
