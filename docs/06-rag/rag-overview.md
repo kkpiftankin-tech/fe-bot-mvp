@@ -50,6 +50,7 @@ metadata filtering + semantic search + ontology + workflow-aware retrieval
 
 | Документ | Содержание |
 | --- | --- |
+| [end-to-end-example.md](end-to-end-example.md) | Сквозной пример: как состояние беседы FE-бота (этап × предметная область × подтема) определяет отбор чанков в контекст и какие классификаторы (этапный, доменный, иерархический) для этого нужны |
 | [rag-methodology.md](rag-methodology.md) | Главный методологический манифест: три режима, принцип, роль RAG |
 | [rag-lifecycle.md](rag-lifecycle.md) | Статусы карточек, версионирование, governance, deprecation |
 | [rag-quality.md](rag-quality.md) | Validation, evaluation, quality gates, observability, acceptance criteria |
